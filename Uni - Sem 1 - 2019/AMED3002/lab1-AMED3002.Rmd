@@ -1,0 +1,27 @@
+---
+title: "lab1"
+author: "Aidan"
+date: "26 February 2019"
+output: pdf_document
+---
+
+```{r}
+#install.packages("tidyverse", dependencies=TRUE)
+#require("tidyverse")
+#install.packages("tibble")
+#install.packages("dplyr")
+#install.packages.("ggplot2")
+```
+
+
+```{r setup, include=FALSE}
+require("tibble")
+df <- read.csv("/home/aidan/Uni/frmgham.csv")
+glimpse(df)
+summary(df)
+df$SEX
+hist(df$AGE)
+a <- plot(df$AGE, df$BMI, type = "h")
+
+```
+

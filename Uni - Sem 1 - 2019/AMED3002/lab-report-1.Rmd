@@ -1,0 +1,130 @@
+---
+title: "Lab Report 1"
+author: "430189999"
+date: "14/3/2019"
+output:
+  prettydoc::html_pretty:
+    theme: hpstr
+    highlight: github
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+##Summary
+
+What is brain cancer?
+
+##Data
+
+##Numerical Summaries
+
+```{r}
+library(readxl)
+require(dplyr)
+require(tibble)
+require(ggplot2)
+require(stringr)
+explore <- read_excel("~/Uni/AMED3002/clinical_2014-01-16.xlsx")
+#glimpse(explore)
+#summary(explore)
+colnames(explore)
+masterDF<- explore[,-c(15:27)]
+masterDF <- masterDF[,-c(10)]
+```
+
+
+```{r}
+df <- masterDF
+df$`Survival (months)` <- as.numeric(as.character(df$`Survival (months)`))
+df$`Survival (months)` <- trunc(df$`Survival (months)`)
+df %>% filter(!is.na(Disease), !is.na(`Survival (months)`), !is.na(df$Gender))
+df <- filter(df,df$`Survival (months)` < 200)
+
+df <- subset(df, df$Disease != "--")
+df <- subset(df, df$Gender != "--")
+df <- subset(df, df$Gender != "-")
+
+ggplot(df, aes(x = df$Gender, y = df$`Survival (months)`, fill = df$Gender)) + geom_boxplot() +
+facet_wrap(~ df$Disease, ncol = 50) +
+  labs(title = "Survival time between men and women, by disease", x = "Gender", y = "Survival Time")
+
+```
+
+```{r}
+glimpse(df$Race)
+df <- subset(df, df$Race != "--")
+df <- subset(df, df$`Age at Dx (years)` != "--")
+glimpse(df)
+ggplot(df,aes(x=df$Race, fill = df$Disease)) +
+  geom_histogram(stat="count")
+
+ggplot(df,aes(x=df$`Survival (months)`, y = df$`Age at Dx (years)`, colour = df$Gender)) +
+  geom_point()
+
+df$`Steroid Dose Status`[df$`Steroid Dose Status`=="NASS"] <- "NO"
+df$`Steroid Dose Status`[df$`Steroid Dose Status`=="--"] <- "NO"
+df$`Steroid Dose Status`[df$`Steroid Dose Status`=="NONE"] <- "NO"
+df$`Steroid Dose Status`[df$`Steroid Dose Status`!="NO"] <- "YES"
+df$`Steroid Dose Status`
+
+df$`Anti-Convulsant Status`[df$`Anti-Convulsant Status`=="NASS"] <- "NO"
+df$`Anti-Convulsant Status`[df$`Anti-Convulsant Status`=="--"] <- "NO"
+df$`Anti-Convulsant Status`[df$`Anti-Convulsant Status`=="NONE"] <- "NO"
+df$`Anti-Convulsant Status`[df$`Anti-Convulsant Status`!="NO"] <- "YES"
+df$`Anti-Convulsant Status`
+
+
+df$`OnStudy Therapy Radiation Type`[df$`OnStudy Therapy Radiation Type`=="NASS"] <- "NO"
+df$`OnStudy Therapy Radiation Type`[df$`OnStudy Therapy Radiation Type`=="NONE"] <- "NO"
+df$`OnStudy Therapy Radiation Type`[df$`OnStudy Therapy Radiation Type`=="--"] <- "NO"
+df$`OnStudy Therapy Radiation Type`[df$`OnStudy Therapy Radiation Type`=="No"] <- "NO"
+df$`OnStudy Therapy Radiation Type`[df$`OnStudy Therapy Radiation Type`!="NO"] <- "YES"
+df$`OnStudy Therapy Radiation Type`
+
+df$`OnStudy Therapy Chemo Agent Name`
+df$`OnStudy Therapy Chemo Agent Name`[df$`OnStudy Therapy Chemo Agent Name`=="NASS"] <- "NO"
+df$`OnStudy Therapy Chemo Agent Name`[df$`OnStudy Therapy Chemo Agent Name`=="--"] <- "NO"
+df$`OnStudy Therapy Chemo Agent Name`[df$`OnStudy Therapy Chemo Agent Name`=="NONE(NONE)"] <- "NO"
+df$`OnStudy Therapy Chemo Agent Name`[df$`OnStudy Therapy Chemo Agent Name`=="No(No)"] <- "NO"
+df$`OnStudy Therapy Chemo Agent Name`[df$`OnStudy Therapy Chemo Agent Name`=="NO(NO)"] <- "NO"
+df$`OnStudy Therapy Chemo Agent Name`[df$`OnStudy Therapy Chemo Agent Name`!="NO"] <- "YES"
+df$`OnStudy Therapy Chemo Agent Name`
+
+ggplot(df,aes(x=df$`Survival (months)`, y = df$`Age at Dx (years)`, colour = df$`OnStudy Therapy Radiation Type`, shape = df$`OnStudy Therapy Chemo Agent Name`)) +
+  geom_point() +
+  facet_wrap(~df$Disease) +
+  labs(shape = "patient had chemo", colour = "patient had RT", y="Age at diagnosis",x="Months survived")
+
+ggplot(df,aes(x=df$`Survival (months)`, y = df$`Age at Dx (years)`, colour = df$`OnStudy Therapy Radiation Type`, shape = df$`OnStudy Therapy Chemo Agent Name`)) +
+  geom_point() +
+  facet_wrap(~df$Gender) +
+  labs(shape = "patient had chemo", colour = "patient had RT", y="Age at diagnosis",x="Months survived")
+
+
+```
+```{r}
+df.extended <- mutate(df, four.years = ifelse(`Survival (months)` >= 48, "YES","NO"))
+
+#what percentage of people suvived more than four years?
+
+tbl <- table(df.extended$four.years)
+prop.table(tbl)
+
+#Does gender have an effect on surviving more than four years?
+
+tbl <- table(df.extended$Gender, df.extended$four.years)
+chisq.test(tbl)
+fisher.test(tbl)
+            
+#suggests that gender is not a factor in surviving more than four years, as the differences in counts can very likely be attributed to differences in sample size.
+
+#Do women survive longer with brain cancer than men?
+
+df.men <- df %>% filter(df$Gender == "M")
+df.women <- df %>% filter(df$Gender == "F")
+t.test(df.men$`Survival (months)`, df.women$`Survival (months)`)
+
+
+```
+

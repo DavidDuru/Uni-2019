@@ -1,0 +1,22 @@
+---
+title: "lab2"
+author: "Aidan"
+date: "5 March 2019"
+output: pdf_document
+---
+
+```{r setup, echo=FALSE}
+require("tibble")
+require("ggplot2")
+require("dplyr")
+data <- read.csv(url("http://www.maths.usyd.edu.au/u/ellisp/AMED3002/data/Cereal.csv"))
+summary(data)
+
+ggplot(data, aes(x = sugjnfgjsdiojars, y = rating, fill = sodium)) +
+ geom_point()
+
+boxplotCalories = data$calories
+boxplot(boxplotCalories, names=c("Calories"))
+
+```
+
