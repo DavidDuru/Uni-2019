@@ -1,0 +1,44 @@
+AgeAtDiagnosis	Difference in years between diagnosis date on Disease Instance and date of birth on Patient
+AgeAtSpecimenAcquisition	Difference in years between Specimen collection date and date of birth of Patient
+CumulativeChemo	If Patient has ever received chemotherapy during the course of their treatment
+CumulativeTreatmentTypeCount	The unique number of treatment types for the Disease instance
+DNAseq	If Whole Exome Sequencing was performed on the Specimen
+DxAtInclusion	Diagnosis at time of earliest Specimen inclusion by collection date
+DxAtSpecimenAcquisition	Diagnosis at time of Specimen acquisition.
+ELN2008	Risk classification assigned to the Specimen based on European Leukemia Network 2008 guidelines
+ELN2017	Risk classification assigned to the Specimen based on European Leukemia Network 2017 guidelines
+FAB_BlastMorphology	FAB classification of the Specimen if noted in the EMR
+FLT3-ITD_consensus_call	Consensus call for FLT3 -ITD used in the analysis
+Gender	Sex description for each Patient obtained from the EMR and filled in with inferred sex information using RNAseq data and a set of 28 differentially expressed genes
+Included_2018_DNAseqAnalysis	If Whole exome sequencing data for the Specimen was used in the aggregate analysis
+Included_2018_RNAseqAnalysis	If RNAseq data for the Specimen was used in the aggregate analysis
+InferredEthnicity	Ethnicity for each Patient inferred from genomic data using a methodology developped by Zheng and Weir (2015)
+isDenovo	If Specimen is obtained at the time of de novo disease
+isRelapse	If Specimen is obtained at time of relapsed disease
+isTransformed	If Patient transformed from another heme malignancy before or at the time of Specimen collection
+Karyotype	Karyotype pulled from the cytogenetics report found in the EMR
+NPM1_consensus_call	Consensus call for NPM1 used in the analysis
+OverallSurvival	If vitalStatus is Dead or Alive, the calculated days between the diagnosis date and the followup date found when determining vitalStatus
+PatientId	Unique identifier for each Patient
+PercentBlastsInBM	% Blast in the bone marrow
+PercentBlastsInPB	% Blast in the peripheral blood
+PlateletCount	Number of platelets (per Litre)
+PriorMalignancyNonMyeloid	If Patient had a prior non-myeloid malignancy
+PriorMalignancyRadiationTx	If Patient has received radiation treatment for a prior non-heme malignancy
+PriorMalignancyType	Type of prior non-myeloid malignancy
+PriorMDS	If Patient was ever diagnosed with MDS
+PriorMDSMoreThanTwoMths	If Patient was diagnosed with MDS at least two months prior to AML diagnosis
+PriorMDSMPN	If Patient was ever diagnosed with MDS/MPN
+PriorMDSMPNMoreThanTwoMths	If Patient was diagnosed with MDS/MPN at least two months prior to AML diagnosis
+PriorMPN	If Patient was ever diagnosed with MPN
+PriorMPNMoreThanTwoMths	If Patient was diagnosed with MPN at least two months prior to AML diagnosis
+RNAseq	If RNAseq was performed on the Specimen
+SampleID	Unique identifier for each Specimen
+SpecificDxAtAcquisition	Specific Diagnosis at time of Specimen acquisition.
+SpecificDxAtInclusion	Specific Diagnosis at time of earliest Specimen inclusion by collection date
+SpecimenType	Type of Specimen (peripheral blood, bone marrow, or leukapheresis sample)
+TimeOfCollectionRelativeToInclusion	Difference in days between the earliest Specimen collection and the date of this sample collection
+TotalDrug	If Ex vivo functional drug testing was performed on the Specimen
+VitalStatus	Patient vital status at the date of most recent follow-up
+WBC_Count	White blood cell count expressed in international units (x10^9 cells/litre)
+WHO_Fusion	Cytogenetic fusions described in the EMR and manually reviewed
