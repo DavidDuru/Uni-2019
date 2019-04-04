@@ -128,9 +128,7 @@ void sam_code(){
 
     struct quoll{
         char name[20];
-        //20 bytes
         uint8_t age;
-        //1 byte
     };
     //sizeof(quoll) will be 21 bytes
 

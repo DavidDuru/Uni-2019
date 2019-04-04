@@ -1,0 +1,36 @@
+Data 2001
+Week 4 notes
+
+doing them here because fuckheads keep voting for the liberal party
+
+Some extra rules for building tables
+
+Not all tables ualify as a relation
+    - every relation must have a unique name
+    - coluimns inb table must haver unique names
+        --the ordewr of the columns doesnt matter
+
+All tuples in a relation have the same structure, constructed form the same set of attributes
+
+Every attribute value is atomic (can't be composed of multiple values, be a class, list, set)
+
+Every row is unique, (can't have two rows with the identical name and values)
+
+SQL: describe what data we are interested in but not how to retrieve it
+
+commands can be, DDL data defintion language, DML data manipulation language
+
+We can specifcy integrity constraints, NULL/NOT NULL for some for columns, so the input cant be null for example
+
+primary key: unique minial identiferi ogf a relation    
+        example include, employee numbers, social security numbers etc, we use this to ensure rows are unique
+
+foriegn key: a (set) of attribute(s) in one relation tha refers to a tuple in another relation, like a logical pointer
+
+In a database of students for example
+???
+
+Join: combine data from different tables that fit together
+
+
+
