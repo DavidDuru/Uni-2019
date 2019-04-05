@@ -1,0 +1,268 @@
+---
+title: "Analysing clinical data of patients diagnosed with brain cancer - lab report 2"
+author: "430189999"
+date: "14/3/2019"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: show
+    theme: "yeti"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r Helper Functions}
+
+###REARRANGE COLS
+##arrange df vars by position
+##'vars' must be a named vector, e.g. c("var.name"=1)
+arrange.vars <- function(data, vars){
+    ##stop if not a data.frame (but should work for matrices as well)
+    stopifnot(is.data.frame(data))
+
+    ##sort out inputs
+    data.nms <- names(data)
+    var.nr <- length(data.nms)
+    var.nms <- names(vars)
+    var.pos <- vars
+    ##sanity checks
+    stopifnot( !any(duplicated(var.nms)), 
+               !any(duplicated(var.pos)) )
+    stopifnot( is.character(var.nms), 
+               is.numeric(var.pos) )
+    stopifnot( all(var.nms %in% data.nms) )
+    stopifnot( all(var.pos > 0), 
+               all(var.pos <= var.nr) )
+
+    ##prepare output
+    out.vec <- character(var.nr)
+    out.vec[var.pos] <- var.nms
+    out.vec[-var.pos] <- data.nms[ !(data.nms %in% var.nms) ]
+    stopifnot( length(out.vec)==var.nr )
+
+    ##re-arrange vars by position
+    data <- data[ , out.vec]
+    return(data)
+}
+
+#USAGE
+#table <- data.frame(Time=c(1,2), In=c(2,3), Out=c(3,4), Files=c(4,5))
+#table
+##  Time In Out Files
+##1    1  2   3     4
+##2    2  3   4     5
+
+#arrange.vars(table, c("Out"=2))
+##  Time Out In Files
+##1    1   3  2     4
+##2    2   4  3     5
+
+#arrange.vars(table, c("Out"=2, "Files"=1, "Time"=4))
+##  Files Out In Time
+##1     4   3  2    1
+##2     5   4  3    2
+
+
+
+```
+
+###Note: I've used the same data and cleaning process from my first lab report so some parts might be repeated. 
+
+###What is brain cancer?
+https://www.cancer.org.au/about-cancer/types-of-cancer/brain-cancer.html:
+from Cancer Council Australa:
+
+Brain cancers include primary brain tumours, which start in the brain and almost never spread to other parts of the body, and secondary tumours (or metastases), which are caused by cancers that began in another part of the body.
+```{r load_libraries,results="hide",message=FALSE}
+##loading data
+library(readxl)
+require(dplyr)
+require(tibble)
+require(ggplot2)
+require(stringr)
+explore<- read_excel("~/GitHub/Uni-2019/Uni - Sem 1 - 2019/AMED3002/clinical_2014-01-16.xlsx")
+colnames(explore)
+glimpse(explore)
+#removing columns that are almost entirely empty
+masterDF<- explore[,-c(15:27)]
+masterDF <- masterDF[,-c(10)]
+```
+##Data
+The data was a sample of this data set:
+"https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE108474&format=file&file=GSE108474%5FREMBRANDT%5Fdata%2Edictionary%2Exlsx"
+The data was collected at the George Town Lombardi Comprehensive Cancer Centre, Washington DC, USA. It contains anonymized clinical data, including pesonal details of patients, diagnosis, survival time, treatments and surgeries.
+
+Details of observations and variables:
+```{r}
+#dimensions of data
+glimpse(masterDF)
+```
+
+###Cleaning
+
+The data was entirely in a character format, so columns were converted to their appropriate types.
+Survival Time was particulary bad with values like "109.9999999999" and some large outliers.
+
+The age data was given in ranges like "14-19", "34-39" which made it hard to analyse.
+The null values were removed, and the strings treated as catgeorical variables.
+
+```{r clean_data,results="hide",message=FALSE,warning=FALSE}
+df <- masterDF
+df$`Survival (months)` <- as.numeric(as.character(df$`Survival (months)`))
+df$`Survival (months)` <- trunc(df$`Survival (months)`)
+df %>% filter(!is.na(Disease), !is.na(`Survival (months)`), !is.na(df$Gender))
+df <- filter(df,df$`Survival (months)` < 200)
+
+df <- subset(df, df$Disease != "--")
+df <- subset(df, df$Gender != "--")
+df <- subset(df, df$Gender != "-")
+df <- subset(df, df$Race != "--")
+df <- subset(df, df$`Age at Dx (years)` != "--")
+```
+A lot of the data involving the clinical records of treatment was messy and unstandardized, the easiest method cleaning and retaining the information was to convert it into a boolean form.
+```{r,results="hide",message=FALSE}
+df$`Steroid Dose Status`[df$`Steroid Dose Status`=="NASS"] <- "NO"
+df$`Steroid Dose Status`[df$`Steroid Dose Status`=="--"] <- "NO"
+df$`Steroid Dose Status`[df$`Steroid Dose Status`=="NONE"] <- "NO"
+df$`Steroid Dose Status`[df$`Steroid Dose Status`!="NO"] <- "YES"
+
+df$`Anti-Convulsant Status`[df$`Anti-Convulsant Status`=="NASS"] <- "NO"
+df$`Anti-Convulsant Status`[df$`Anti-Convulsant Status`=="--"] <- "NO"
+df$`Anti-Convulsant Status`[df$`Anti-Convulsant Status`=="NONE"] <- "NO"
+df$`Anti-Convulsant Status`[df$`Anti-Convulsant Status`!="NO"] <- "YES"
+
+df$`OnStudy Therapy Radiation Type`[df$`OnStudy Therapy Radiation Type`=="NASS"] <- "NO"
+df$`OnStudy Therapy Radiation Type`[df$`OnStudy Therapy Radiation Type`=="NONE"] <- "NO"
+df$`OnStudy Therapy Radiation Type`[df$`OnStudy Therapy Radiation Type`=="--"] <- "NO"
+df$`OnStudy Therapy Radiation Type`[df$`OnStudy Therapy Radiation Type`=="No"] <- "NO"
+df$`OnStudy Therapy Radiation Type`[df$`OnStudy Therapy Radiation Type`!="NO"] <- "YES"
+
+df$`OnStudy Therapy Chemo Agent Name`
+df$`OnStudy Therapy Chemo Agent Name`[df$`OnStudy Therapy Chemo Agent Name`=="NASS"] <- "NO"
+df$`OnStudy Therapy Chemo Agent Name`[df$`OnStudy Therapy Chemo Agent Name`=="--"] <- "NO"
+df$`OnStudy Therapy Chemo Agent Name`[df$`OnStudy Therapy Chemo Agent Name`=="NONE(NONE)"] <- "NO"
+df$`OnStudy Therapy Chemo Agent Name`[df$`OnStudy Therapy Chemo Agent Name`=="No(No)"] <- "NO"
+df$`OnStudy Therapy Chemo Agent Name`[df$`OnStudy Therapy Chemo Agent Name`=="NO(NO)"] <- "NO"
+df$`OnStudy Therapy Chemo Agent Name`[df$`OnStudy Therapy Chemo Agent Name`!="NO"] <- "YES"
+
+df.extended <- mutate(df, four.years = ifelse(`Survival (months)` >= 48, "YES","NO"))
+```
+
+##Analysis
+
+
+**Does gender have an effect on surviving more than four years?**
+We can perform a chi squared test of proportions
+
+Assumptions:
+
+Hypothesis:
+```{r}
+tbl <- table(df.extended$Gender, df.extended$four.years)
+chisq.test(tbl)
+fisher.test(tbl)
+```
+Conclusion:
+The p-value of 0.91 and 0.81 with one degree of freedom suggests that gender is not a factor in surviving more than four years, as the differences in counts can very likely be attributed to differences in sample size.
+
+
+We can perform dimension reduction to get an idea of how the variance in the data is distributed.
+
+We first need to perform data munging the data to do pca.
+```{r}
+#drop
+library(plyr)
+library(dplyr)
+glimpse(df)
+
+colnames(df)
+df.pca <- df[-c(1)]
+df.pca <- df.pca[-c(20:21)]
+arrange.vars(df.pca, c("Survival (months)"=2))
+
+glimpse(df.pca)
+
+df.pca <- rename(df.pca,c('Steroid Dose Status' = 'hadSteroids'))
+df.pca <- rename(df.pca,c('Anti-Convulsant Status' = 'hadAntiConvulsant'))
+df.pca <- rename(df.pca,c('OnStudy Therapy Radiation Type' = 'hadRadio'))
+df.pca <- rename(df.pca,c('OnStudy Therapy Chemo Agent Name' = 'hadChemo'))
+df.pca <- rename(df.pca,c('Age at Dx (years)' = 'ageRange'))
+df.pca <- rename(df.pca,c('Survival (months)' = 'monthsSurvived'))
+
+glimpse(df.pca)
+
+df.pca <- df.pca %>%  select(Gender, monthsSurvived, ageRange, Disease, hadSteroids, hadAntiConvulsant, hadRadio, hadChemo)
+
+character_vars <- lapply(df.pca, class) == "character"
+df.pca[, character_vars] <- lapply(df.pca[, character_vars], as.factor)
+
+df.pca <- na.omit(df.pca)
+
+dim(df.pca)
+```
+
+```{r}
+
+dataContinuous = as.data.frame(model.matrix(~.,df.pca)[,-1])
+
+df3 <- dataContinuous
+
+df3 <- df3 %>% filter(df3$monthsSurvived > 0)
+df3$monthsSurvived <- log(df3$monthsSurvived)
+
+pca = prcomp(df3)
+
+summary(pca)$importance[,1:6]
+
+plot(pca$x[,1:2])
+
+rownames(pca$rotation)
+
+sort(pca$rotation[,1])
+sort(pca$rotation[,2])
+
+hh = hclust(dist(df3))
+
+plot(hh, main = "")
+
+```
+
+```{r}
+#install.packages("devtools")
+#devtools::install_github("vqv/ggbiplot")
+#install_github("kassambara/factoextra")
+
+library("devtools")
+library(ggbiplot)
+library("factoextra")
+pca2 = princomp(dataContinuous, cor = TRUE)
+
+p1 = ggscreeplot(pca2) + theme_bw(base_size = 20) + labs(y = "Prop. of explained variance")
+p2 = ggscreeplot(pca2,type = "cev") + theme_bw(base_size = 20) + labs(y = " Cumulative prop. of explained variance")
+gridExtra::grid.arrange(p1,p2,ncol=2)
+
+summary(pca2)
+result <- get_pca_var(pca2)
+head(result$contrib)
+
+
+
+
+```
+
+
+We can perform ANOVA:
+```{r}
+
+```
+
+We can perform regression:
+```{r}
+
+```
+
+
