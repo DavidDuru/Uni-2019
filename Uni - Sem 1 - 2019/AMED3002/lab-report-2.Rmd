@@ -1,0 +1,221 @@
+---
+title: "Analysing clinical data of patients diagnosed with brain cancer - lab report 2"
+author: "430189999"
+date: "2/4/2019"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+    theme: "yeti"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#devtools::install_github('cttobin/ggthemr')
+
+
+```
+###What is brain cancer?
+https://www.cancer.org.au/about-cancer/types-of-cancer/brain-cancer.html:
+from Cancer Council Australa:
+
+Brain cancers include primary brain tumours, which start in the brain and almost never spread to other parts of the body, and secondary tumours (or metastases), which are caused by cancers that began in another part of the body.
+```{r load_libraries,results="hide",message=FALSE}
+##loading data
+library(readxl)
+require(dplyr)
+require(tibble)
+require(ggplot2)
+require(stringr)
+require(ggthemr)
+explore <- read_excel("/home/aidan/Uni/Uni - Sem 1 - 2019/AMED3002/clinical_2014-01-16.xlsx")
+colnames(explore)
+glimpse(explore)
+#removing columns that are almost entirely empty
+masterDF<- explore[,-c(15:27)]
+masterDF <- masterDF[,-c(10)]
+```
+##Data
+The data was a sample of this data set:
+"https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE108474&format=file&file=GSE108474%5FREMBRANDT%5Fdata%2Edictionary%2Exlsx"
+The data was collected at the George Town Lombardi Comprehensive Cancer Centre, Washington DC, USA. It contains anonymized clinical data, including pesonal details of patients, diagnosis, survival time, treatments and surgeries.
+
+Details of observations and variables:
+```{r}
+#dimensions of data
+glimpse(masterDF)
+```
+
+###Cleaning
+
+The data was entirely in a character format, so columns were converted to their appropriate types.
+Survival Time was particulary bad with values like "109.9999999999" and some large outliers.
+
+The age data was given in ranges like "14-19", "34-39" which made it hard to analyse.
+The null values were removed, and the strings treated as catgeorical variables.
+
+```{r clean_data,results="hide",message=FALSE,warning=FALSE}
+df <- masterDF
+df$`Survival (months)` <- as.numeric(as.character(df$`Survival (months)`))
+df$`Survival (months)` <- trunc(df$`Survival (months)`)
+df %>% filter(!is.na(Disease), !is.na(`Survival (months)`), !is.na(df$Gender))
+df <- filter(df,df$`Survival (months)` < 200)
+
+df <- subset(df, df$Disease != "--")
+df <- subset(df, df$Gender != "--")
+df <- subset(df, df$Gender != "-")
+df <- subset(df, df$Race != "--")
+df <- subset(df, df$`Age at Dx (years)` != "--")
+```
+A lot of the data involving the clinical records of treatment was messy and unstandardized, the easiest method cleaning and retaining the information was to convert it into a boolean form.
+```{r,results="hide",message=FALSE}
+df$`Steroid Dose Status`[df$`Steroid Dose Status`=="NASS"] <- "NO"
+df$`Steroid Dose Status`[df$`Steroid Dose Status`=="--"] <- "NO"
+df$`Steroid Dose Status`[df$`Steroid Dose Status`=="NONE"] <- "NO"
+df$`Steroid Dose Status`[df$`Steroid Dose Status`!="NO"] <- "YES"
+
+df$`Anti-Convulsant Status`[df$`Anti-Convulsant Status`=="NASS"] <- "NO"
+df$`Anti-Convulsant Status`[df$`Anti-Convulsant Status`=="--"] <- "NO"
+df$`Anti-Convulsant Status`[df$`Anti-Convulsant Status`=="NONE"] <- "NO"
+df$`Anti-Convulsant Status`[df$`Anti-Convulsant Status`!="NO"] <- "YES"
+
+df$`OnStudy Therapy Radiation Type`[df$`OnStudy Therapy Radiation Type`=="NASS"] <- "NO"
+df$`OnStudy Therapy Radiation Type`[df$`OnStudy Therapy Radiation Type`=="NONE"] <- "NO"
+df$`OnStudy Therapy Radiation Type`[df$`OnStudy Therapy Radiation Type`=="--"] <- "NO"
+df$`OnStudy Therapy Radiation Type`[df$`OnStudy Therapy Radiation Type`=="No"] <- "NO"
+df$`OnStudy Therapy Radiation Type`[df$`OnStudy Therapy Radiation Type`!="NO"] <- "YES"
+
+df$`OnStudy Therapy Chemo Agent Name`
+df$`OnStudy Therapy Chemo Agent Name`[df$`OnStudy Therapy Chemo Agent Name`=="NASS"] <- "NO"
+df$`OnStudy Therapy Chemo Agent Name`[df$`OnStudy Therapy Chemo Agent Name`=="--"] <- "NO"
+df$`OnStudy Therapy Chemo Agent Name`[df$`OnStudy Therapy Chemo Agent Name`=="NONE(NONE)"] <- "NO"
+df$`OnStudy Therapy Chemo Agent Name`[df$`OnStudy Therapy Chemo Agent Name`=="No(No)"] <- "NO"
+df$`OnStudy Therapy Chemo Agent Name`[df$`OnStudy Therapy Chemo Agent Name`=="NO(NO)"] <- "NO"
+df$`OnStudy Therapy Chemo Agent Name`[df$`OnStudy Therapy Chemo Agent Name`!="NO"] <- "YES"
+
+df.extended <- mutate(df, four.years = ifelse(`Survival (months)` >= 48, "YES","NO"))
+```
+
+After cleaning the dataset was reduced from 127 to 77 observations, the relatively small number of observations limited the amount of analysis that could be done.
+
+##Distribution {.tabset .tabset-fade .tabset-pills}
+
+Plots
+
+###Total Age
+
+Looking at this distribution we can see the majority of tumours occur in patients 35-39 years old.
+
+```{r exploration_plotting}
+ggplot(df, aes(x=df$`Age at Dx (years)`, fill = df$`Age at Dx (years)`)) +
+  geom_bar(position = "dodge2") +
+    labs(title = "Age/Gender distribution",  fill = "Age", x = "Gender", y = "Count")
+```
+
+###Gender
+
+The majority holds when comparing between men and women, with slightly more older men being diagnosed.
+
+```{r}
+#both distrbutions are approx normal
+ggplot(df, aes(x=df$Gender, fill = df$`Age at Dx (years)`)) +
+  geom_bar(position = "dodge2") +
+    labs(title = "Age/Gender distribtion",  fill = "Age", x = "Gender", y = "Count")
+```
+
+###Ethnicity
+
+Most patients identified their ethnicity as white, with little data of other ethnicities. Mosty likely this represents a sample of the population around the hospital.
+
+```{r}
+ggplot(df, aes(x=df$Race, fill = df$`Age at Dx (years)`)) +
+  geom_bar(position = "dodge2") +
+    labs(title = "Race/Gender included in study", x = "Gender", y = "Count", fill = "Age")
+```
+
+##Survival Plots{.tabset .tabset-fade .tabset-pills}
+
+###Survival-Gender
+
+The distributions of survival time look similar between genders accross diseases, but it appears disease type has a large effect on survival time.
+
+```{r}
+ggthemr('flat dark')
+ggplot(df, aes(x = df$Gender, y = df$`Survival (months)`, fill = df$Gender)) + geom_boxplot() +
+facet_wrap(~ df$Disease, ncol = 50) +
+  labs(title = "Survival time between men and women, by disease", x = "Gender", y = "Survival Time")
+```
+
+###Survival-Age-Disease
+
+The left to right downward slope of the points indicates young people have a better chance of living longer with the disease.
+
+```{r}
+ggplot(df,aes(x = df$`Age at Dx (years)`, y = df$`Survival (months)`, colour = df$Disease)) +
+  geom_point() +
+  geom_jitter(height = 0.05) +
+  labs(colour = "Disease", y="Months Survived", x="Age", title="Comparing Age and Survival by Disease type") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 10))
+```
+
+
+###Survival-Treatment
+
+With a larger sample size we could determine if certain types of brain tumour were more resistant to particular types of treatment, across different ages.
+
+```{r}
+ggplot(df,aes(x=df$`Age at Dx (years)`, y=df$`Survival (months)`, colour = df$`OnStudy Therapy Radiation Type`, shape = df$`OnStudy Therapy Chemo Agent Name`)) +
+  geom_point() +
+  facet_wrap(~df$Disease) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 7)) +
+  labs(shape = "patient had chemo", colour = "patient had RT", y="Age at diagnosis",x="Months survived" ,title = "Comparing age and survival time by treatment type, between diseases")
+```
+
+##Analysis
+
+**What percentage of people suvived more than four years?**
+```{r analysis}
+tbl <- table(df.extended$four.years)
+prop.table(tbl)
+```
+42% of patients survived more than four years 
+
+**Does gender have an effect on surviving more than four years?**
+```{r}
+tbl <- table(df.extended$Gender, df.extended$four.years)
+chisq.test(tbl)
+fisher.test(tbl)
+```
+The p-value of 0.91 and 0.81 with one degree of freedom suggests that gender is not a factor in surviving more than four years, as the differences in counts can very likely be attributed to differences in sample size.
+
+**Do patients diagnosed wit a GBM have the same mean survival time as those diagnosed with astrocytoma**
+
+We can perform a t-test to check for a difference in means.
+```{r}
+df.GBM <- df %>% filter(df$Disease == "GBM")
+df.astro <- df %>% filter(df$Disease == "ASTROCYTOMA")
+t.test(df.GBM$`Survival (months)`, df.astro$`Survival (months)`)
+```
+The p-value of 0.001 with 52 degree's of freedom suggests the differences in mean betweens these groups is due to variations other than differences in sample sizes between the groups.
+
+Patients diagnosed with GBM's do not have the same mean survival time as those with an Astrocytoma.
+
+**Do patients diagnosed wit a GBM have the same mean survival time as those diagnosed with astrocytoma**
+
+We can perform an ANOVA  to check for a difference in mean survival between disease types.
+```{r}
+df.GBM <- df %>% filter(df$Disease == "GBM")
+df.astro <- df %>% filter(df$Disease == "ASTROCYTOMA")
+df.astro <- df %>% filter(df$Disease == "ASTROCYTOMA")
+t.test(df.GBM$`Survival (months)`, df.astro$`Survival (months)`)
+```
+The p-value of 0.001 with 52 degree's of freedom suggests the differences in mean betweens these groups is due to variations other than differences in sample sizes between the groups.
+
+Patients diagnosed with GBM's do not have the same mean survival time as those with an Astrocytoma.
+
+
+
+
+
+

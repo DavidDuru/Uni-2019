@@ -1,0 +1,264 @@
+---
+title: "Group Assessment 1"
+author: "430189999"
+date: "data here"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+    theme: "yeti"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+###Load Libraries
+```{r load_libraries,results="hide",message=FALSE}
+##loading data
+library(readxl)
+require(dplyr)
+require(tibble)
+require(ggplot2)
+require(stringr)
+require(naniar)
+library(readr)
+library(crayon)
+
+#for fancy ggpairs plot
+#library(GGally)
+
+#for clustering on catgeorical variables
+library(FactoMineR)
+
+#easy regression table?
+library(stargazer)
+
+#nice looking tables
+library(kableExtra)
+
+```
+###Load Data
+```{r}
+df <- read_csv("https://raw.githubusercontent.com/mantissa-aidan/amed3002/master/All_sample_data.csv",
+    col_types = cols(CEBPA_Biallelic = col_factor(levels = c("y", 
+        "n")), CumulativeChemo = col_factor(levels = c("y", 
+        "n"))))
+```
+
+###Domain Information
+
+##Data Dictionary
+```{r}
+dataDictionary <- read_delim("https://raw.githubusercontent.com/mantissa-aidan/amed3002/master/dataDictionary.csv", 
+    "\t", escape_double = FALSE, col_names = FALSE, 
+    trim_ws = TRUE)
+
+dataDictionary %>%
+  kable() %>%
+  kable_styling()
+```
+
+##Helper Functions
+```{r}
+###REARRANGE COLS
+##arrange df vars by position
+##'vars' must be a named vector, e.g. c("var.name"=1)
+arrange.vars <- function(data, vars){
+    ##stop if not a data.frame (but should work for matrices as well)
+    stopifnot(is.data.frame(data))
+
+    ##sort out inputs
+    data.nms <- names(data)
+    var.nr <- length(data.nms)
+    var.nms <- names(vars)
+    var.pos <- vars
+    ##sanity checks
+    stopifnot( !any(duplicated(var.nms)), 
+               !any(duplicated(var.pos)) )
+    stopifnot( is.character(var.nms), 
+               is.numeric(var.pos) )
+    stopifnot( all(var.nms %in% data.nms) )
+    stopifnot( all(var.pos > 0), 
+               all(var.pos <= var.nr) )
+
+    ##prepare output
+    out.vec <- character(var.nr)
+    out.vec[var.pos] <- var.nms
+    out.vec[-var.pos] <- data.nms[ !(data.nms %in% var.nms) ]
+    stopifnot( length(out.vec)==var.nr )
+
+    ##re-arrange vars by position
+    data <- data[ , out.vec]
+    return(data)
+}
+
+#USAGE
+#table <- data.frame(Time=c(1,2), In=c(2,3), Out=c(3,4), Files=c(4,5))
+#table
+##  Time In Out Files
+##1    1  2   3     4
+##2    2  3   4     5
+
+#arrange.vars(table, c("Out"=2))
+##  Time Out In Files
+##1    1   3  2     4
+##2    2   4  3     5
+
+#arrange.vars(table, c("Out"=2, "Files"=1, "Time"=4))
+##  Files Out In Time
+##1     4   3  2    1
+##2     5   4  3    2
+
+
+```
+
+###Cleaning
+```{r, results = 'asis'}
+df$VitalStatus
+df$VitalStatus[df$VitalStatus == "Healthy, pooled CD34+"] <- "Alive"
+df$VitalStatus[df$VitalStatus == "Healthy, Individual BM MNC"] <- "Alive"
+df$VitalStatus[df$VitalStatus == "Healthy, Individual CD34+"] <- "Alive"
+df$VitalStatus[df$VitalStatus == "0.9"] <- "Unknown"
+
+ggplot(df, aes(VitalStatus, as.numeric(df$WBC_Count), fill = Gender)) + geom_boxplot()
+
+df$CumulativeTreatmentTypeCount <- as.numeric(df$CumulativeTreatmentTypeCount)
+df$OverallSurvival <- as.numeric(df$OverallSurvival)
+df$PlateletCount <- as.numeric(df$PlateletCount)
+df$TimeOfCollectionRelativeToInclusion <- as.numeric(df$TimeOfCollectionRelativeToInclusion)
+df$WBC_Count <- as.numeric(df$WBC_Count)
+
+c <- unique(df$PriorMalignancyType)
+c
+
+colnames(df)
+df <- arrange.vars(df, c("CumulativeTreatmentTypeCount"=1, "OverallSurvival"=2, "PlateletCount"=3))
+df <- arrange.vars(df, c("TimeOfCollectionRelativeToInclusion"=4, "WBC_Count"=5))
+
+glimpse(df)
+factors = c(6:48)
+df[factors] <- lapply(df[cols], factor)
+df <- na.omit(df)
+
+dataContinuous = as.data.frame(model.matrix(~.,df)[,-1])
+pca = prcomp(dataContinuous)
+summary(pca)$importance[,1:6]
+plot(pca$x[,1:2])
+sort(pca$rotation[,1])
+```
+
+###Cleaning
+
+```{r clean_data,results="hide",message=FALSE,warning=FALSE}
+
+```
+
+```{r,results="hide",message=FALSE}
+```
+
+##Tab Heading {.tabset .tabset-fade .tabset-pills}
+
+#Our Content
+
+###Fatima
+```{r}
+#Code goes here
+
+```
+
+###Yousra
+```{r}
+#Code goes here
+#older younger, alive dead
+```
+
+###Vinitha
+```{r}
+#Code goes here
+```
+
+###David
+```{r}
+#Code goes here
+```
+
+###Aidan
+```{r}
+#Code goes here
+```
+
+###Tab1
+
+```{r exploration_plotting}
+#ggplot(df, aes(x=df$`Age at Dx (years)`, fill = df$`Age at Dx (years)`)) +
+#  geom_bar(position = "dodge2") +
+#    labs(title = "Age/Gender distribution",  fill = "Age", x = "Gender", y = "Count")
+```
+
+###Tab 2
+
+```{r}
+#both distrbutions are approx normal
+#ggplot(df, aes(x=df$Gender, fill = df$`Age at Dx (years)`)) +
+#  geom_bar(position = "dodge2") +
+#    labs(title = "Age/Gender distribtion",  fill = "Age", x = "Gender", y = "Count")
+```
+
+###Tab 3
+
+
+```{r}
+#ggplot(df, aes(x=df$Race, fill = df$`Age at Dx (years)`)) +
+#  geom_bar(position = "dodge2") +
+#    labs(title = "Race/Gender included in study", x = "Gender", y = "Count", fill = "Age")
+```
+
+##Tab Section 2{.tabset .tabset-fade .tabset-pills}
+
+###Tab 2.1
+
+```{r}
+#ggplot(df, aes(x = df$Gender, y = df$`Survival (months)`, fill = df$Gender)) + geom_boxplot() +
+#facet_wrap(~ df$Disease, ncol = 50) +
+#  labs(title = "Survival time between men and women, by disease", x = "Gender", y = "Survival Time")
+```
+
+###Tab 2.2
+
+```{r}
+##ggplot(df,aes(x = df$`Age at Dx (years)`, y = df$`Survival (months)`, colour = df$Disease)) +
+#  geom_point() +
+#  geom_jitter(height = 0.05) +
+#  labs(colour = "Disease", y="Months Survived", x="Age", title="Comparing Age and Survival by Disease type") +
+#  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 10))
+```
+
+
+###Tab 2.3
+
+```{r}
+#ggplot(df,aes(x=df$`Age at Dx (years)`, y=df$`Survival (months)`, colour = df$`OnStudy Therapy Radiation Type`, #shape = df$`OnStudy Therapy Chemo Agent Name`)) +
+#  geom_point() +
+#  facet_wrap(~df$Disease) +
+#  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 7)) +
+#  labs(shape = "patient had chemo", colour = "patient had RT", y="Age at diagnosis",x="Months survived" ,title = "Comparing age and survival time by treatment type, between diseases")
+```
+
+##Analysis
+
+```{r analysis}
+
+```
+
+```{r}
+```
+
+```{r}
+
+```
+
+
+
+
