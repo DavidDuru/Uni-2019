@@ -1,0 +1,474 @@
+---
+title: "Group Assessment 1"
+author: "430189999"
+date: "data here"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+    theme: "yeti"
+---
+
+###Load Libraries
+```{r load_libraries,results="hide",message=FALSE}
+##loading data
+library(readxl)
+library(dplyr)
+library(tibble)
+library(ggplot2)
+library(stringr)
+library(naniar)
+library(readr)
+library(crayon)
+
+#for fancy ggpairs plot
+#library(GGally)
+
+#for clustering on catgeorical variables
+#library(FactoMineR)
+
+#easy regression table?
+#library(stargazer)
+
+#nice looking tables
+library(kableExtra)
+
+```
+###Load Data
+```{r}
+df <- read_csv("https://raw.githubusercontent.com/mantissa-aidan/amed3002/master/All_sample_data.csv",
+    col_types = cols(CEBPA_Biallelic = col_factor(levels = c("y", 
+        "n")), CumulativeChemo = col_factor(levels = c("y", 
+        "n"))))
+
+```
+
+###Domain Information
+
+##Data Dictionary
+```{r}
+dataDictionary <- read_delim("https://raw.githubusercontent.com/mantissa-aidan/amed3002/master/dataDictionary.csv", 
+    "\t", escape_double = FALSE, col_names = FALSE, 
+    trim_ws = TRUE)
+
+dataDictionary %>%
+  kable() %>%
+  kable_styling()
+```
+
+##Helper Functions
+```{r}
+###REARRANGE COLS
+##arrange df vars by position
+##'vars' must be a named vector, e.g. c("var.name"=1)
+arrange.vars <- function(data, vars){
+    ##stop if not a data.frame (but should work for matrices as well)
+    stopifnot(is.data.frame(data))
+
+    ##sort out inputs
+    data.nms <- names(data)
+    var.nr <- length(data.nms)
+    var.nms <- names(vars)
+    var.pos <- vars
+    ##sanity checks
+    stopifnot( !any(duplicated(var.nms)), 
+               !any(duplicated(var.pos)) )
+    stopifnot( is.character(var.nms), 
+               is.numeric(var.pos) )
+    stopifnot( all(var.nms %in% data.nms) )
+    stopifnot( all(var.pos > 0), 
+               all(var.pos <= var.nr) )
+
+    ##prepare output
+    out.vec <- character(var.nr)
+    out.vec[var.pos] <- var.nms
+    out.vec[-var.pos] <- data.nms[ !(data.nms %in% var.nms) ]
+    stopifnot( length(out.vec)==var.nr )
+
+    ##re-arrange vars by position
+    data <- data[ , out.vec]
+    return(data)
+}
+
+#USAGE
+#table <- data.frame(Time=c(1,2), In=c(2,3), Out=c(3,4), Files=c(4,5))
+#table
+##  Time In Out Files
+##1    1  2   3     4
+##2    2  3   4     5
+
+#arrange.vars(table, c("Out"=2))
+##  Time Out In Files
+##1    1   3  2     4
+##2    2   4  3     5
+
+#arrange.vars(table, c("Out"=2, "Files"=1, "Time"=4))
+##  Files Out In Time
+##1     4   3  2    1
+##2     5   4  3    2
+
+ggplotRegression <- function (fit) {
+require(ggplot2)
+ggplot(fit$model, aes_string(x = names(fit$model)[2], y = names(fit$model)[1])) + 
+  geom_point() +
+  stat_smooth(method = "lm", col = "red") +
+  labs(title = paste("Adj R2 = ",signif(summary(fit)$adj.r.squared, 5),
+                     "Intercept =",signif(fit$coef[[1]],5 ),
+                     " Slope =",signif(fit$coef[[2]], 5),
+                     " P =",signif(summary(fit)$coef[2,4], 5)))
+}
+
+```
+
+###Cleaning
+```{r, results = 'asis'}
+df$VitalStatus
+df$VitalStatus[df$VitalStatus == "Healthy, pooled CD34+"] <- "Alive"
+df$VitalStatus[df$VitalStatus == "Healthy, Individual BM MNC"] <- "Alive"
+df$VitalStatus[df$VitalStatus == "Healthy, Individual CD34+"] <- "Alive"
+df$VitalStatus[df$VitalStatus == "0.9"] <- "Unknown"
+
+ggplot(df, aes(VitalStatus, as.numeric(df$WBC_Count), fill = Gender)) + geom_boxplot()
+
+df$CumulativeTreatmentTypeCount <- as.numeric(df$CumulativeTreatmentTypeCount)
+df$OverallSurvival <- as.numeric(df$OverallSurvival)
+df$PlateletCount <- as.numeric(df$PlateletCount)
+df$TimeOfCollectionRelativeToInclusion <- as.numeric(df$TimeOfCollectionRelativeToInclusion)
+df$WBC_Count <- as.numeric(df$WBC_Count)
+
+c <- unique(df$PriorMalignancyType)
+c
+
+colnames(df)
+df <- arrange.vars(df, c("CumulativeTreatmentTypeCount"=1, "OverallSurvival"=2, "PlateletCount"=3))
+df <- arrange.vars(df, c("TimeOfCollectionRelativeToInclusion"=4, "WBC_Count"=5))
+
+glimpse(df)
+factors = c(6:48)
+df[factors] <- lapply(df[factors], factor)
+df <- na.omit(df)
+
+dataContinuous = as.data.frame(model.matrix(~.,df)[,-1])
+pca = prcomp(dataContinuous)
+summary(pca)$importance[,1:6]
+plot(pca$x[,1:2])
+sort(pca$rotation[,1])
+```
+
+##Tab Heading {.tabset .tabset-fade .tabset-pills}
+
+#Our Content
+
+###Fatima
+```{r}
+#Code goes here
+
+```
+
+###Yousra
+```{r}
+#Code goes here
+#older younger, alive dead
+```
+
+###Vinitha
+
+#### Leukemia is a disease that affects white blood cells in individuals resulting in abnormally high white blood cell counts. Hence testing for white blood cell counts could be useful in the diagnosis of leukemia. Although, it is not directly used to diagnose cancer it provides information on whether further testing is needed.
+
+
+#### Question: Does gender affect white blood cell count in individuals which potentially indicate a risk of leukemia?
+
+#### Hypothesis: Studies have found that males have a higher risk of leukemia which means they could have a higher white blood cell count compared to females 
+#### H0 = There is no difference in white blood cell count between males and females 
+#### H1 = There is a difference in white blood cell count between males and females 
+
+
+#### Supporting studies: A study performed northeast peninsular Malaysia, found that acute leukemia is more common in males possibily due to differences in "sex-responsive" genes near the ABO gene locus at chromosome 9. 
+
+#### Reference: Jackson, N., Menon, B.S., Zarina, W., Zawawi, N. and Naing, N.N., 1999. Why is acute leukemia more common in males? A possible sex-determined risk linked to the ABO blood group genes. Annals of hematology, 78(5), pp.233-236.
+
+#### Analysis of data - comparing gender and white blood cell count 
+```{r}
+
+
+
+```
+#### Figure 1: Boxplot comparing white blood cell counts between males and females.
+
+
+#### From figure 1, it can be observed that both boxplots are right skewed which means mean > median value. A greater median value as well as a greater interquartile range is seen in females compared to males. This indicates that females have a higher white blood cell count compared to males. However, males are observed to have more outliers present. 
+
+#### Violin plot is also used to show the probability density of data at different values
+
+```{r}
+
+
+```
+#### Figure 2: Violin plot comparing white blood cell counts between males and females.
+
+#### Figure 2 shows that males have a higher distribution of white blood cell count compared to females. It is also seen that females have a higher probabilty of having a white blood cell count of over 50 (x10^9 cells/litre).
+
+
+
+#### Conclusion: Results from the figures indicate that females have a higher white blood cell count compared to males. Hence, there is weak evidence against the null hypothesis. However, it must be noted that having a higher white blood cell count does not directly suggest a greater risk of developing leukemia in individuals. It is still important to monitor white blood cell counts to check for abnormally high levels which indicate the need for further testing. 
+
+
+#### Checking for further risk factors - Myelodysplastic syndromes(MDS)
+
+#### MDS are a group of diseases which affect the production of normal blood cells in the bone marrow 
+
+ 
+#### Question: Does MDS affect white blood cell count differently in males and females?
+#### Hypothesis: 
+#### H0 = MDS does not affect white blood cell count differently in males and females 
+#### H1 - MDS affects white blood cell count differently in males and females
+
+#### Two-way ANNOVA test 
+#### Assumption: Observations within each cell are normally distributed and have equal variances
+
+```{r}
+
+```
+#### Level of significance = 0.05 
+
+#### Pr (>F) value is > 0.05, there is weak evidence against the null hypothesis (H0)
+
+####Not the above fitted model is called additive model. It makes an assumption that the two factor variables are independent.
+
+#### Check if these two variables might interact to create an synergistic effect
+
+#### Two-way ANOVA with interaction effect
+#### These two calls are equivalent
+
+```{r}
+
+```
+#### Pr(>F) value is > 0.05, there is weak evidence against the null hypothesis. 
+
+
+#### Interaction plot for two way ANNOVA test
+```{r}
+
+```
+
+
+#### Conclusion: From the ANOVA table we can conclude that both prior MDS and gender or their interaction are not statistically significant. These results would lead us to believe that being previously diagnosed with MDS or difference in gender, will not significantly impact the white blood cell count of individuals.
+
+
+###David
+
+```{r}
+#Code goes here
+```
+
+Assumptions for MLR:
+
+    1. Linearity: All predictor variables have an approximate linear              relationship with the response variable
+    
+    2. Homoskedasticity: The errors have constant variance --> needs to be        assessed after model is built
+    
+    3. Independence: No actual information is given in regard to how this data     was collected i.e. whether or not they were collected on different days at     different locations etc. However, as this data has previously been used       for building predictive models, we will operate under the assumption that       the data is IID
+    
+    4. Normality: The errors follow a normal distribution - This will need to     be assessed after a model is fitted using a QQ plot
+    
+    5. No perfect collinearity: As is to be expected, all the different weight     measurements have a very strong correlation with eachother, over 0.955 for     all.
+
+###Aidan
+
+```{r}
+#ggplot(df, aes(x = OverallSurvival)) + geom_histogram()
+#ggplot(df, aes(x = WBC_Count)) + geom_histogram()
+#ggplot(df, aes(x = PlateletCount)) + geom_histogram()
+ggplot(df, aes(x = CumulativeTreatmentTypeCount)) + geom_histogram()
+
+
+
+
+```
+
+```{r}
+library(tidyverse)
+library(ggfortify)
+library(GGally)
+library(leaps)
+library(caret)
+library(survival)
+library(rms)
+library(hablar)
+
+glimpse(df)
+#df.mlr <- df %>% filter(WBC_Count < 300, PlateletCount < 500)
+#df.mlr <- df %>% filter(WBC_Count > 0, PlateletCount > 0, OverallSurvival > 0)
+df.mlr <- df %>% filter(OverallSurvival > 30, VitalStatus == "Dead" || VitalStatus == "Alive")
+#df.mlr <- df %>% filter(OverallSurvival, VitalStatus == "Dead")
+df.mlr$PercentBlastsInBM <- as.numeric(df.mlr$PercentBlastsInBM)
+df.mlr$PercentBlastsInPB <- as.numeric(df.mlr$PercentBlastsInPB)
+df.mlr[c(1:5)] <- log(df.mlr[c(1:5)])
+
+df.mlr <- df.mlr %>% mutate_if(is.numeric, list(~na_if(., Inf))) %>% 
+  mutate_if(is.numeric, list(~na_if(., -Inf)))
+
+df.mlr <- na.omit(df.mlr)
+df.mlr <- df.mlr %>% select(-"PatientID", -"SampleID")
+
+df.mlr2 <- df.mlr
+df.mlr2
+
+regsubset.out = regsubsets(OverallSurvival ~ ., data = df.mlr2, method = "backward")
+exhaustive_sum = summary(regsubset.out)
+exhaustive = regsubset.out
+plot(exhaustive_sum$rsq, xlab = "num variables", ylab = "R square", type = "b", main = "R Squared")
+plot(exhaustive_sum$adjr2, xlab = "num variables", ylab = "adjusted r squared", type = "b", main = "Adjusted Rsquared ")
+plot(exhaustive_sum$cp, xlab = "num variables", ylab = "complexity param", type = "b", main = "Complexity parameter")
+plot(exhaustive_sum$bic, xlab = "num variables", ylab = "bic", type = "b", main = "BIC")
+
+df.mlr3 <- df.mlr %>% select("CumulativeTreatmentTypeCount", "OverallSurvival", "PlateletCount", "WBC_Count", "TimeOfCollectionRelativeToInclusion")
+
+ggpairs(df.mlr3)
+
+cv_full = train(
+  OverallSurvival ~ CumulativeTreatmentTypeCount + PlateletCount + TimeOfCollectionRelativeToInclusion + WBC_Count, df.mlr2,
+  method = "lm",
+  trControl = trainControl(
+    method = "cv", number = 10,
+    verboseIter = FALSE
+  )
+)
+
+exhaustive_sum2 = summary(regsubset.out)
+
+plot(exhaustive_sum2$rsq, xlab = "num variables", ylab = "R square", type = "b", main = "R Squared")
+plot(exhaustive_sum2$adjr2, xlab = "num variables", ylab = "adjusted r squared", type = "b", main = "Adjusted Rsquared ")
+plot(exhaustive_sum2$cp, xlab = "num variables", ylab = "complexity param", type = "b", main = "Complexity parameter")
+plot(exhaustive_sum2$bic, xlab = "num variables", ylab = "bic", type = "b", main = "BIC")
+
+exhaustive_sum2
+
+control <- trainControl(method = "repeatedcv", 
+                        number = 10, 
+                        repeats = 6)
+
+formula = OverallSurvival ~ CumulativeTreatmentTypeCount + PlateletCount + BoneMarrowTransplant + WBC_Count + CumulativeChemo
+
+model_lm <- train(formula, data = df.mlr2, method='lm',
+                  trControl = control, tuneLength = 10)
+
+summary(model_lm)
+
+model_lm
+
+result <- lm(formula,df.mlr2)
+summary(result)
+autoplot(result, which = 1:2)
+
+```
+
+```{r}
+df.cox <- df %>% filter(OverallSurvival, VitalStatus == "Dead" || VitalStatus == "Alive")
+#df.mlr <- df %>% filter(OverallSurvival, VitalStatus == "Dead")
+df.cox$PercentBlastsInBM <- as.numeric(df.mlr$PercentBlastsInBM)
+df.cox$PercentBlastsInPB <- as.numeric(df.mlr$PercentBlastsInPB)
+df.cox <- df.cox %>% select(-"PatientID", -"SampleID")
+
+df.cox$SurvObj <- with(df.cox, Surv(OverallSurvival, VitalStatus == "Dead"))
+
+#Kaplan Meirer curve
+km1 <- survfit(formula = SurvObj ~ BoneMarrowTransplant , data = df.cox)
+
+plot(km1)
+
+km2 <- npsurv(formula = SurvObj ~ CumulativeChemo , data = df.cox)
+survplot(km2)
+
+km2 <- npsurv(formula = SurvObj ~ Gender , data = df.cox)
+survplot(km2)
+
+cox <- coxph(SurvObj ~ ., data = df.cox)
+cox
+
+formulaSurv = SurvObj ~ CumulativeTreatmentTypeCount + PlateletCount + BoneMarrowTransplant + WBC_Count + CumulativeChemo
+
+cox <- coxph(formulaSurv, data = df.cox)
+cox
+
+res.cox <- cox.zph(cox)
+
+plot(res.cox)
+
+```
+
+
+###Tab1
+
+```{r exploration_plotting}
+#ggplot(df, aes(x=df$`Age at Dx (years)`, fill = df$`Age at Dx (years)`)) +
+#  geom_bar(position = "dodge2") +
+#    labs(title = "Age/Gender distribution",  fill = "Age", x = "Gender", y = "Count")
+```
+
+###Tab 2
+
+```{r}
+#both distrbutions are approx normal
+#ggplot(df, aes(x=df$Gender, fill = df$`Age at Dx (years)`)) +
+#  geom_bar(position = "dodge2") +
+#    labs(title = "Age/Gender distribtion",  fill = "Age", x = "Gender", y = "Count")
+```
+
+###Tab 3
+
+
+```{r}
+#ggplot(df, aes(x=df$Race, fill = df$`Age at Dx (years)`)) +
+#  geom_bar(position = "dodge2") +
+#    labs(title = "Race/Gender included in study", x = "Gender", y = "Count", fill = "Age")
+```
+
+##Tab Section 2{.tabset .tabset-fade .tabset-pills}
+
+###Tab 2.1
+
+```{r}
+#ggplot(df, aes(x = df$Gender, y = df$`Survival (months)`, fill = df$Gender)) + geom_boxplot() +
+#facet_wrap(~ df$Disease, ncol = 50) +
+#  labs(title = "Survival time between men and women, by disease", x = "Gender", y = "Survival Time")
+```
+
+###Tab 2.2
+
+```{r}
+##ggplot(df,aes(x = df$`Age at Dx (years)`, y = df$`Survival (months)`, colour = df$Disease)) +
+#  geom_point() +
+#  geom_jitter(height = 0.05) +
+#  labs(colour = "Disease", y="Months Survived", x="Age", title="Comparing Age and Survival by Disease type") +
+#  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 10))
+```
+
+
+###Tab 2.3
+
+```{r}
+#ggplot(df,aes(x=df$`Age at Dx (years)`, y=df$`Survival (months)`, colour = df$`OnStudy Therapy Radiation Type`, #shape = df$`OnStudy Therapy Chemo Agent Name`)) +
+#  geom_point() +
+#  facet_wrap(~df$Disease) +
+#  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 7)) +
+#  labs(shape = "patient had chemo", colour = "patient had RT", y="Age at diagnosis",x="Months survived" ,title = "Comparing age and survival time by treatment type, between diseases")
+```
+
+##Analysis
+
+```{r analysis}
+
+```
+
+```{r}
+```
+
+```{r}
+
+```
+
+
+
+
