@@ -21,26 +21,28 @@ library(stringr)
 library(naniar)
 library(readr)
 library(crayon)
-library(tidyverse)
-library(ggfortify)
-library(GGally)
-library(leaps)
-library(caret)
-library(survival)
-library(rms)
-library(hablar)
+library(questionr)
+library(ggpubr)
+
+#for fancy ggpairs plot
+#library(GGally)
+
+#for clustering on catgeorical variables
+#library(FactoMineR)
+
+#easy regression table?
+#library(stargazer)
+
+#nice looking tables
 library(kableExtra)
-library(scatterplot3d)
-library(survminer)
 
 ```
 ###Load Data
 ```{r}
-raw <- read_csv("https://raw.githubusercontent.com/mantissa-aidan/amed3002/master/All_sample_data.csv",
+df <- read_csv("https://raw.githubusercontent.com/mantissa-aidan/amed3002/master/All_sample_data.csv",
     col_types = cols(CEBPA_Biallelic = col_factor(levels = c("y", 
         "n")), CumulativeChemo = col_factor(levels = c("y", 
         "n"))))
-
 ```
 
 ###Domain Information
@@ -107,25 +109,12 @@ arrange.vars <- function(data, vars){
 ##1     4   3  2    1
 ##2     5   4  3    2
 
-ggplotRegression <- function (fit) {
-require(ggplot2)
-ggplot(fit$model, aes_string(x = names(fit$model)[2], y = names(fit$model)[1])) + 
-  geom_point() +
-  stat_smooth(method = "lm", col = "red") +
-  labs(title = paste("Adj R2 = ",signif(summary(fit)$adj.r.squared, 5),
-                     "Intercept =",signif(fit$coef[[1]],5 ),
-                     " Slope =",signif(fit$coef[[2]], 5),
-                     " P =",signif(summary(fit)$coef[2,4], 5)))
-}
 
 ```
 
-
-
 ###Cleaning
 ```{r, results = 'asis'}
-df <- raw
-df <- df %>% select(-"PatientID", -"SampleID") 
+df$VitalStatus
 df$VitalStatus[df$VitalStatus == "Healthy, pooled CD34+"] <- "Alive"
 df$VitalStatus[df$VitalStatus == "Healthy, Individual BM MNC"] <- "Alive"
 df$VitalStatus[df$VitalStatus == "Healthy, Individual CD34+"] <- "Alive"
@@ -139,36 +128,23 @@ df$PlateletCount <- as.numeric(df$PlateletCount)
 df$TimeOfCollectionRelativeToInclusion <- as.numeric(df$TimeOfCollectionRelativeToInclusion)
 df$WBC_Count <- as.numeric(df$WBC_Count)
 
-df$PercentBlastsInBM<- as.numeric(df$PercentBlastsInBM)
-df$PercentBlastsInPB<- as.numeric(df$PercentBlastsInPB)
+c <- unique(df$PriorMalignancyType)
+c
 
-df$PriorMDS[df$PriorMDS == "Healthy, Individual BM MNC"] <- "y"
-df$PriorMDS[df$PriorMDS == "Healthy, Individual CD34+"] <- "y"
-df$PriorMDS[df$PriorMDS == "Healthy, pooled CD34+"] <- "y"
-
-df$AnyGeneTrailsGene[df$AnyGeneTrailsGene == "Healthy, Individual BM MNC"] <- "TRUE"
-df$AnyGeneTrailsGene[df$AnyGeneTrailsGene == "Healthy, Individual CD34+"] <- "TRUE"
-df$AnyGeneTrailsGene[df$AnyGeneTrailsGene == "Healthy, pooled CD34+"] <- "TRUE"
-
+colnames(df)
 df <- arrange.vars(df, c("CumulativeTreatmentTypeCount"=1, "OverallSurvival"=2, "PlateletCount"=3))
 df <- arrange.vars(df, c("TimeOfCollectionRelativeToInclusion"=4, "WBC_Count"=5))
 
-factors = c(6:46)
+glimpse(df)
+factors = c(6:48)
 df[factors] <- lapply(df[factors], factor)
 df <- na.omit(df)
 
 dataContinuous = as.data.frame(model.matrix(~.,df)[,-1])
 pca = prcomp(dataContinuous)
-#summary(pca)$importance[,1:6]
-#plot(pca$x[,1:2])
+summary(pca)$importance[,1:6]
+plot(pca$x[,1:2])
 sort(pca$rotation[,1])
-
-loadings <- as.data.frame(pca$rotation[,1:5])
-head(loadings)
-
-head(loadings)%>%
-  kable() %>%
-  kable_styling()
 ```
 
 ##Tab Heading {.tabset .tabset-fade .tabset-pills}
@@ -182,10 +158,83 @@ head(loadings)%>%
 ```
 
 ###Yousra
+
+
+
+####Does early diagnosis or diagnosis at younger/older ages indicate greater/lower chances for survival?
+
+####Hypothesis: Early diagnosis increases chances of survival
+
+####Does relapse of disease indicate lower chances of survival?
+
+####Hypothesis: Relapse decreases odds of survival
+
 ```{r}
 #Code goes here
-#older younger, alive dead
+#What is Leaukeuamia, specifically ALM?
 ```
+####Acute Myeloid Leukemia results specifically from muations in developing bone marrow cells. This leads to unrestrained proliferation of leukemic white blood cells usually accompanied by anemia, impaired blood clotting, and enlargement of the lymph nodes, liver, and spleen.
+
+####What factors (prior diagnosis, age at diagnosis, gender) contribute to Overall survival
+```{r}
+#How many rows and columns are in the data?
+nrow(df)
+ncol(df)
+#How many of the subjects were Female?
+sum(df$Gender == "Female")
+#How many were Male?
+sum(df$Gender == "Male")
+```
+####Relationship between overall survival and age at diagnosis
+```{r}
+#What is the average survival time for the patients in this data set?
+#ummary(overallSurvivalNum)
+#mean(na.omit(overallSurvivalNum))
+#What is the shortest survival time of a patient in this data set?
+#overallSurvivalNum <- overallSurvivalNum[overallSurvivalNum > 0]
+#summary(overallSurvivalNum)
+#min(na.omit(overallSurvivalNum))
+#How many people in the data set were >25 years old at diagnosis?
+#older <- sum(dataContinuous$AgeAtDiagnosis >25)
+#summary(older)
+#How many people that were >25 years old at diagnosis are dead?
+#dead <- sum(df$VitalStatus == "Dead")
+#sum(dead=older)
+#How many people in the data set that were <25 years old at diagnosis are dead? 
+#younger <- (df$AgeAtDiagnosis < 25)
+#dead <- sum(df$VitalStatus == "Dead")
+
+#if age at diagnosis cant be added into the data set just remove the question and the code
+```
+
+####Relationship between relapse and vitality status
+
+```{r}
+#How many subjects had a prior diagnosis of MPN?
+PriorMDSpositive <- sum(df$PriorMDS == "y")
+summary(PriorMDSpositive)
+#How many subjects who had a prior diagnosis of MPN are dead?
+dead <- sum(df$VitalStatus == "Dead")
+summary(dead)
+sum(dead=PriorMDSpositive)
+```
+#### 100% of subjects who had been priorly diagnosed with the disease have been confirmed dead. 
+
+
+####Relationship between relapse and overall survival
+```{r}
+#relapse and overall survival realtionship (box plot)?
+df$PriorMDS[df$PriorMDS == "Healthy, Individual BM MNC"] <- "y"
+df$PriorMDS[df$PriorMDS == "Healthy, Individual CD34+"] <- "y"
+df$PriorMDS[df$PriorMDS == "Healthy, pooled CD34+"] <- "y"
+ggplot(df, aes(x = factor(df$PriorMDS), y = df$OverallSurvival, fill = PriorMDS)) + geom_boxplot()+labs(x = "PriorMDS", y = "Overall survival (years)")
+chisq.test(df$OverallSurvival >0)
+```
+####Figure 1.  demonstrates whether survival (in days) after diagnosis of AML is affected by previous diagnonsis
+
+
+
+
 
 ###Vinitha
 
@@ -206,7 +255,7 @@ head(loadings)%>%
 #### Analysis of data - comparing gender and white blood cell count 
 ```{r}
 
-
+ggplot(df, aes(x = factor(Gender), y = df$WBC_Count, fill = Gender)) + geom_boxplot()+labs(x = "GENDER", y = "WBC COUNT (x10^9 cells/litre)")
 
 ```
 #### Figure 1: Boxplot comparing white blood cell counts between males and females.
@@ -218,7 +267,7 @@ head(loadings)%>%
 
 ```{r}
 
-
+ggplot(df, aes(x = factor(Gender), y = df$WBC_Count, fill = Gender)) + geom_violin()+labs(x = "GENDER", y = "WBC COUNT (x10^9 cells/litre)")
 ```
 #### Figure 2: Violin plot comparing white blood cell counts between males and females.
 
@@ -243,7 +292,8 @@ head(loadings)%>%
 #### Assumption: Observations within each cell are normally distributed and have equal variances
 
 ```{r}
-
+res.aov2 <- aov(df$WBC_Count ~ df$Gender + df$PriorMDS, data = df)
+summary(res.aov2)
 ```
 #### Level of significance = 0.05 
 
@@ -257,185 +307,144 @@ head(loadings)%>%
 #### These two calls are equivalent
 
 ```{r}
-
+res.aov3 <- aov(df$WBC_Count ~ df$Gender * df$PriorMDS, data = df)
+res.aov3 <- aov(df$WBC_Count ~ df$Gender + df$PriorMDS + df$Gender:df$PriorMDS, data = df )
+            
+summary(res.aov3)
 ```
 #### Pr(>F) value is > 0.05, there is weak evidence against the null hypothesis. 
 
 
 #### Interaction plot for two way ANNOVA test
 ```{r}
-
+interaction.plot(x.factor = df$PriorMDS, trace.factor = df$Gender, 
+                 response = df$WBC_Count, fun = mean, 
+                 type = "b", legend = TRUE, 
+                 xlab = "MDS", ylab="WBC count",
+                 pch=c(1,19), col = c("#00AFBB", "#E7B800"))
 ```
 
 
 #### Conclusion: From the ANOVA table we can conclude that both prior MDS and gender or their interaction are not statistically significant. These results would lead us to believe that being previously diagnosed with MDS or difference in gender, will not significantly impact the white blood cell count of individuals.
 
 
-###David
+### David 
+
+#### Relationship between MDS and WBC Count {.tabset .tabset-fade}
+
+Myelodysplastic Syndromes (MDS) are cancers or morbidities which cause abnormalities in precusers of white blood cells in the bone marrow. These syndromes result in immune cells not maturing, and therefore becomming healthy cells. Some of these syndromes have the potential to develop in to AML.
+
+An important question is to determine whether there is a relation between being diagnoses with prior MDS and WBC populations in AML patients.
+
+**Hypotheses** 
+**H0**: There will be no significant difference between patients who have been previous diagnosed with MDS before AML diagnosis and those that haven't prior to MDS diagnosis.
+**H1**: There will be some sigificant, directional difference between patients with prior MDS diagnosis and those without prior MDS diagnisis before AML diagnosis.
+
+##### MDS Vs WBC count
 
 ```{r}
-levels(df$PriorMDS)
+
+MDSplot1=ggplot(df,aes(x=df$PriorMDS,y=df$WBC_Count, fill=df$PriorMDS)) + geom_boxplot() + labs(title = "MDS Diagnosis effect on WBC count", x = "Diagnosed with \nMyelodysplastic Syndrome", y="WBC Count \n(Cells/L of blood)") + theme(legend.position = "none")
+
+MDSplot2=ggplot(df,aes(x=df$PriorMDS,y=df$WBC_Count, fill=df$PriorMalignancyNonMyeloid)) + geom_boxplot() + labs(title = "MDS Diagnosis effect on WBC count", x = "Diagnosed with \nMyelodysplastic Syndrome", y="WBC Count \n(Cells/L of blood)", fill="Prior \nNon Myeloid \nNeoplasm")
+
+MDSplot1
+
+
+
 ```
 
-Assumptions for MLR:
 
-    1. Linearity: All predictor variables have an approximate linear              relationship with the response variable
-    
-    2. Homoskedasticity: The errors have constant variance --> needs to be        assessed after model is built
-    
-    3. Independence: No actual information is given in regard to how this data     was collected i.e. whether or not they were collected on different days at     different locations etc. However, as this data has previously been used       for building predictive models, we will operate under the assumption that       the data is IID
-    
-    4. Normality: The errors follow a normal distribution - This will need to     be assessed after a model is fitted using a QQ plot
-    
-    5. No perfect collinearity: As is to be expected, all the different weight     measurements have a very strong correlation with eachother, over 0.955 for     all.
+#####MDS + PriorNO vs WBC
+
+```{r}
+
+MDSplot2
+
+```
+
+
+##### Statistical Analysis
+
+
+```{r}
+
+aov(df$WBC_Count ~ df$PriorMalignancyNonMyeloid * df$PriorMDS)
+
+summary(aov(df$WBC_Count ~ df$PriorMalignancyNonMyeloid * df$PriorMDS))
+
+
+```
+
+Based on the results seen in the above figures, we can observe that there is no statistical difference bewteen Prior MDS and Non-Prior MDS AML patients WBC count, thus we are unable to reject the null hypothesis. As previous research would suggest that our results are incorrect, we can explain our result due to the uneven number of Prior MDS positive observations, and if we has a larger population, perhabs there would be a more significant difference.
+
+####  WBC on Overall Survival {.tabset .tabset-fade}
+
+xt we can review the affect that white blood cell (WBC) proliferation in AML has on survival time in days. Normally in cases of infection and non-AML/ALL neoplasms, WBCs would normally proliferate to increase their number for fighting the morbidity. This is usually to the patients benefit, however in AML, this may be different. Here we will examine if WBC proliferation is beneficial or detrimental to patient survival.
+
+We would question whether having a high WBC counter can be a prognostic indicator.
+
+**Hypotheses**:
+**H0**: WBC will have no significant relationship with Overall survival time or whether patient survived until follow up.
+**H1**: WBC population number will have a significant corelation effect to the survival and vitality of the patient.
+
+##### WBC v overall Survival
+
+```{r}
+df4 = df[df$OverallSurvival < 2000,]
+
+LMFIT = lm(df$OverallSurvival ~ df$WBC_Count)
+LMFIT2 = lm(df4$OverallSurvival ~ df4$WBC_Count)
+
+LMPLOT1=ggplot(df,aes(x =df$WBC_Count, y=df$OverallSurvival )) +geom_point() + theme_bw() + geom_smooth(method = 'lm') + labs(x = "WBCs/L", y="Survial (Days)")
+
+LMPLOT2=ggplot(df4,aes(x =df4$WBC_Count, y=df4$OverallSurvival )) +geom_point() + theme_bw() + geom_smooth(method = 'lm') + labs(x = "WBCs/L", y="Survial (Days)")
+
+ggarrange(LMPLOT1, LMPLOT2, labels = c("A", "B")) 
+```
+
+##### WBC v Survival Linear regression analysis
+
+```{r}
+summary(LMFIT)
+summary(LMFIT2)
+
+```
+
+##### WBC v Vitality status
+
+```{r}
+WBCplot3=ggplot(df,aes(x=df$VitalStatus,y=df$WBC_Count, fill=df$VitalStatus)) + geom_boxplot() + labs(title = "WBC v Vitality status on check up", x = "Survival Until Check up date", y="WBC Count \n(Cells/L of blood)") + theme(legend.position = "none")
+
+WBCplot3
+
+```
+
+##### WBC v Vitality analysis
+
+```{r}
+
+WBCvVITALITYaov=aov(df$WBC_Count ~ df$VitalStatus)
+
+summary(WBCvVITALITYaov)
+
+```
+
+<font size="1"> **Figure 3.** **(a. Effects WBC Proliferation on Survival in raw data.), (b. Effects WBC Proliferation on Survival without outliers) ** This figure the negative corelation between increasing WBC population and Survival (days). Assumptions that the data is normally distributed and is independant have been are unsatisfied in both raw and outlier fixed data.</font>
+
+
+From Figure 3a, we can see that there is a clear negative correlation between increasing WBC populations and overall survival of patients (p < 0.05). Although this isnt statitically significant in Figure 3b, this overall negative relationship remains. This can be explained as more neoplastic cancerous cells mean more oportunity to metastisise in to other tissue and form new tumourous growths.
+
+
+
+
+
+
 
 ###Aidan
-
 ```{r}
-library(reshape2)
-df.heat <- df
-
-df.heat <- rename(df.heat, TreatmentCount = CumulativeTreatmentTypeCount , TimeToInc = TimeOfCollectionRelativeToInclusion)
-
-ggpairs(df.heat[c(1:5)])
-
-colnames(df.heat)
-
-cormat <- round(cor(df.heat[c(1:5)]),2)
-
-melted_cormat <- melt(cormat)
-head(melted_cormat)
-
-library(ggplot2)
-ggplot(data = melted_cormat, aes(x=Var1, y=Var2, fill=value)) + geom_tile() + theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 10))
-
-
+#Code goes here
 ```
-###Backwards stepwise regression
-```{r}
-df.mlr <- df %>% filter(WBC_Count < 300, PlateletCount < 500)
-df.mlr <- df %>% filter(WBC_Count > 0, PlateletCount > 0, OverallSurvival > 0)
-df.mlr <- df %>% filter(OverallSurvival > 60, VitalStatus == "Dead" || VitalStatus == "Alive")
-#df.mlr <- df %>% filter(OverallSurvival, VitalStatus == "Dead")
-df.mlr$PercentBlastsInBM <- as.numeric(df.mlr$PercentBlastsInBM)
-df.mlr$PercentBlastsInPB <- as.numeric(df.mlr$PercentBlastsInPB)
-#df.mlr[c(1:5)] <- log(df.mlr[c(1:5)])
-#df.mlr[c(1)] <- log(df.mlr[c(1)])
-
-df.mlr <- df.mlr %>% mutate_if(is.numeric, list(~na_if(., Inf))) %>% 
-  mutate_if(is.numeric, list(~na_if(., -Inf)))
-
-df.mlr <- na.omit(df.mlr)
-
-
-df.mlr2 <- df.mlr
-#df.mlr2
-
-regsubset.out = regsubsets(OverallSurvival ~ ., data = df.mlr2, method = "backward")
-backwards_sum = summary(regsubset.out)
-backwards = regsubset.out
-plot(backwards_sum$rsq, xlab = "num variables", ylab = "R square", type = "b", main = "R Squared")
-plot(backwards_sum$adjr2, xlab = "num variables", ylab = "adjusted r squared", type = "b", main = "Adjusted Rsquared ")
-plot(backwards_sum$cp, xlab = "num variables", ylab = "complexity param", type = "b", main = "Complexity parameter")
-plot(backwards_sum$bic, xlab = "num variables", ylab = "bic", type = "b", main = "BIC")
-
-#backwards_sum
-
-cv_full = train(
-  OverallSurvival ~ CumulativeTreatmentTypeCount + PlateletCount + TimeOfCollectionRelativeToInclusion + WBC_Count, df.mlr2,
-  method = "lm",
-  trControl = trainControl(
-    method = "cv", number = 10,
-    verboseIter = FALSE
-  )
-)
-
-final <- cv_full$finalModel
-
-autoplot(final, which = 1:2)
-
-pred.mlr1 <- predict(final, df.mlr2)
-
-compare.mlr <- data.frame(prediction = pred.mlr1, observation = df.mlr2$OverallSurvival)
-
-boxplot(compare.mlr, horizontal=TRUE, main="comparison")
-
-
-```
-
-```{r}
-regsubset.out = regsubsets(OverallSurvival ~ ., data = df.mlr2, method = "forward")
-forward_sum = summary(regsubset.out)
-forward = regsubset.out
-plot(forward_sum$rsq, xlab = "num variables", ylab = "R square", type = "b", main = "R Squared")
-plot(forward_sum$adjr2, xlab = "num variables", ylab = "adjusted r squared", type = "b", main = "Adjusted Rsquared ")
-plot(forward_sum$cp, xlab = "num variables", ylab = "complexity param", type = "b", main = "Complexity parameter")
-plot(forward_sum$bic, xlab = "num variables", ylab = "bic", type = "b", main = "BIC")
-
-#forward_sum
-
-cv_full = train(
-  OverallSurvival ~ CumulativeTreatmentTypeCount + PlateletCount + TimeOfCollectionRelativeToInclusion, df.mlr2,
-  method = "lm",
-  trControl = trainControl(
-    method = "cv", number = 10,
-    verboseIter = FALSE
-  )
-)
-
-final <- cv_full$finalModel
-
-autoplot(final, which = 1:2)
-
-pred.mlr1 <- predict(final, df.mlr2)
-
-compare.mlr <- data.frame(prediction = pred.mlr1, observation = df.mlr2$OverallSurvival)
-
-boxplot(compare.mlr, horizontal=TRUE, main="comparison")
-
-```
-
-```{r}
-library(pec)
-df.cox <- df %>% filter(OverallSurvival, VitalStatus == "Dead" || VitalStatus == "Alive")
-#df.mlr <- df %>% filter(OverallSurvival, VitalStatus == "Dead")
-df.cox$PercentBlastsInBM <- as.numeric(df.cox$PercentBlastsInBM)
-df.cox$PercentBlastsInPB <- as.numeric(df.cox$PercentBlastsInPB)
-
-df.cox <- df.cox %>% filter(WBC_Count < 300, PlateletCount < 500)
-df.cox <- df.cox %>% filter(WBC_Count > 0, PlateletCount > 0, OverallSurvival > 0 || OverallSurvival < 1000)
-
-
-df.cox$SurvObj <- with(df.cox, Surv(OverallSurvival, VitalStatus == "Dead"))
-
-#Kaplan Meirer curve
-km1 <- npsurv(formula = SurvObj ~ BoneMarrowTransplant , data = df.cox)
-survplot(km1)
-
-km2 <- npsurv(formula = SurvObj ~ CumulativeChemo , data = df.cox)
-survplot(km2)
-
-km3 <- npsurv(formula = SurvObj ~ Gender , data = df.cox)
-survplot(km3)
-
-formulaSurv = SurvObj ~ CumulativeTreatmentTypeCount + PlateletCount + TimeOfCollectionRelativeToInclusion + WBC_Count
-
-cox <- coxph(formulaSurv, data = df.cox)
-summary(cox)
-
-summary(cox)
-#proportional hazards assumption
-ggcoxdiagnostics(cox, type = "schoenfeld")
-#linear realtions for continuous predictors
-ggcoxdiagnostics(cox, type = "martingale")
-#skewing varaibles
-ggcoxdiagnostics(cox, type = "deviance", ox.scale = "time")
-
-
-
-  
-```
-
 
 ###Tab1
 

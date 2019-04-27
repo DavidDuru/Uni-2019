@@ -1,0 +1,373 @@
+---
+title: "Survey"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+
+## Read in data
+
+Here we will read in our class survey data from a csv file. This class survey is a concatonation of responses from the last two years of AMED3002 and 2017's STAT2012 Cohorts. If you look at the missing data structure, is it obvious which questions have been added to the survey?
+
+
+
+```{r}
+survey <- read_csv("C:/Users/aidan/Desktop/ClassSurvey.V3.csv")
+
+## size of the data set
+dim(survey)
+
+## Take the questions that overlap between Cohorts.
+
+survey = survey[,1:18]
+
+
+## rename column names
+
+
+colnames(survey)
+oldname = colnames(survey)
+newname = c("Time", "ID", "Gender", "Postcode", "StatsCourse",
+            "Clubs", "StudyTime", "StudyLoad", "SocialMedia",
+            "Siblings", "FBFriends", "Grade", "Pet",
+            "Home", "ExerciseTime", "Eyecolor", "Working",
+            "Season")
+colnames(survey) = newname
+
+```
+
+
+
+## Data Cleaning
+
+The survey was collected in such a way so as to demonstrate the kind of responses that you might get if you aren't specific with your questions. We clearly have some dirty data and will attempt to clean it up.
+
+
+```{r}
+
+# Clean up the results a little bit.
+survey$Grade = as.character(survey$Grade)
+survey$Grade[survey$Grade=='n/a'] = NA
+survey$Grade[survey$Grade=='50-60'] = 55
+survey$Grade[survey$Grade=='pass'] = 50
+survey$Grade[survey$Grade=='D'] = 75
+survey$Grade[survey$Grade=='c'] = 65
+survey$Grade[survey$Grade=='HD'] = 85
+survey$Grade = as.numeric(survey$Grade)
+
+
+survey$StudyTime = as.character(survey$StudyTime)
+survey$StudyTime[survey$StudyTime=='5-Jun'] = NA
+survey$StudyTime[survey$StudyTime=='8hr'] = 8
+survey$StudyTime[survey$StudyTime=='28 hours'] = 28
+survey$StudyTime[survey$StudyTime=='8hr'] = 8
+survey$StudyTime[survey$StudyTime=="didn't start uni maybe 6h"] = 6
+survey$StudyTime[survey$StudyTime=='not sure'] = NA
+survey$StudyTime[survey$StudyTime=='not sure '] = NA
+survey$StudyTime[survey$StudyTime=='20-'] = 22
+survey$StudyTime[survey$StudyTime=='20-25?'] = 22.5
+survey$StudyTime[survey$StudyTime=='n/a'] = NA
+survey$StudyTime[survey$StudyTime=='25+'] = NA
+survey$StudyTime[survey$StudyTime=='25+'] = NA
+survey$StudyTime[survey$StudyTime=='10 (excluding attending university) '] = 10
+survey$StudyTime[survey$StudyTime=='10?'] = 10
+survey$StudyTime[survey$StudyTime=='I have no idea '] = NA
+survey$StudyTime[survey$StudyTime=='10-12 extracrricular'] = 11
+survey$StudyTime[survey$StudyTime=='Too many'] = NA
+survey$StudyTime[survey$StudyTime=='too many'] = NA
+survey$StudyTime[survey$StudyTime=='25 hours a week'] = 25
+survey$StudyTime[survey$StudyTime=='20-24'] = 22
+survey$StudyTime = as.numeric(survey$StudyTime)
+
+
+
+FB = survey$FBFriends
+FB = gsub('\\+','',FB)
+FB = gsub('~','',FB)
+FB = gsub(' ish','',FB)
+FB[FB=="Don't have facebook"] = 0
+FB[FB=="Don't have FB"] = 0
+FB[FB=="none (not in facebook)"] = 0
+FB[FB=="Cant remember"] = NA
+FB[FB=="not sure"] = NA
+FB[FB=="I don't know"] = NA
+FB[FB=="do not know"] = NA
+FB = as.numeric(FB)
+FB[is.na(FB)] = mean(FB,na.rm = TRUE)
+survey[,"FBFriends"] = FB
+
+
+ET = as.character(survey$ExerciseTime)
+ET[ET==''] = 0
+ET[ET=='5-Jun'] = 5.5
+ET[ET=='2-Mar'] = 2.5
+ET[ET=='4-May'] = 4.5
+ET[ET=='6 hr'] = 6
+ET[ET=='none'] = 0
+ET[ET=='2 hours'] = 2
+survey[,"ExerciseTime"] = as.numeric(ET)
+
+
+WK = as.character(survey[,"Working"])
+WK[WK==''] = 0
+WK[WK=='18 hours'] = 18
+WK[WK=='8-Dec'] = 10
+WK[WK=='168'] = NA
+WK[WK=='none'] = 0
+survey[,"Working"] = as.numeric(WK)
+
+
+PT = as.character(survey$Pet)
+PT[PT==''] = NA
+survey$Pet = as.factor(PT)
+
+
+HM = as.character(survey$Home)
+HM[HM==''] = NA
+survey$Home = as.factor(HM)
+
+
+SB = as.character(survey$Siblings)
+SB[SB=='none'] = 0
+SB[SB=='165'] = NA
+SB[SB=='one'] = 1
+SB[SB=='One'] = 1
+survey$Siblings = as.numeric(SB)
+
+
+CB = as.character(survey$Clubs)
+CB[grep('none',CB,ignore.case = TRUE)] = 0
+CB[CB=="10+"] = 10
+CB[CB=="18 or so? executive of 9"] = 18
+survey$Clubs = as.numeric(CB)
+
+
+SN = as.character(survey$Season)
+SN[SN==''] = NA
+survey$Season = as.factor(SN)
+
+survey$Cohort = (as.Date(survey$Time)>"2018-01-01") + (as.Date(survey$Time)>"2019-01-01")
+survey$Cohort = factor(survey$Cohort,levels = c(0,1,2), labels = c('STAT2012','AMED3002.2018','AMED3002.2019'))
+
+```
+
+
+
+## Example: Grades
+
+Let's ask a very reasonable question. Is there a relationship between the amount of time someone spends studying and their grades?
+
+
+### Take a look
+
+```{r}
+library(tidyverse)
+ggplot(survey,aes(x = StudyTime,y =Grade))+geom_point() + theme_bw()
+```
+
+There is clearly an outlier, let's remove it and look again...
+
+```{r}
+# Remove outlier
+survey2 = survey[which(survey$StudyTime<100),]
+ggplot(survey2,aes(x = StudyTime,y =Grade , colour = Cohort))+geom_point() + theme_bw()
+
+```
+
+
+### Testing 
+
+Now lets test to see if there is a relationship between study time and grades. What do we see here? What conclusions should we make, Is there anything we should be concerned about? Is this a good fit?
+
+
+```{r}
+fit = lm(Grade~StudyTime,survey2)
+summary(fit)
+plot(fit)
+```
+
+We might be worried about the people with low grades. Lets remove them to see if our results are robust
+
+```{r}
+# Remove outlier
+survey3 = survey2[survey2$Grade > 40,]
+# Or
+survey3 = filter(survey2,Grade > 40)
+
+
+ggplot(survey3,aes(x = StudyTime,y =Grade , colour = Cohort))+geom_point() + theme_bw() 
+
+fit = lm(Grade~StudyTime,survey3)
+summary(fit)
+plot(fit)
+
+
+```
+
+
+### What trend?
+
+We can fit regression line using ggplot as well. What do you think the shaded area means?
+
+
+```{r}
+ggplot(survey3,aes(x = StudyTime,y =Grade ))+geom_point() + theme_bw() + geom_smooth(method = 'lm')
+
+```
+
+
+Lets colour by cohort
+
+```{r}
+ggplot(survey3,aes(x = StudyTime,y =Grade ,colour = Cohort))+geom_point() + theme_bw() + geom_smooth(method = 'lm')
+
+```
+
+
+
+## Multiple linear regression
+
+We measure more than one variable. How well can we predict someones grades? If we fit a model with all the variables is it a good or reasonable fit? What conclusions could we make?
+
+
+
+
+```{r}
+survey4 = survey2[,c('Grade','StudyTime','Cohort','FBFriends','ExerciseTime','Working',"Pet","Home",'Clubs','Season')]
+survey4 = survey4[rowSums(is.na(survey4))==0,]
+fit = lm(Grade~.,survey4)
+summary(fit)
+plot(fit)
+
+```
+
+
+Use the data with outliers removed
+
+```{r}
+survey4 = survey3[,c('Grade','StudyTime','Cohort','FBFriends','ExerciseTime','Working',"Pet","Home",'Clubs','Season')]
+survey4 = survey4[rowSums(is.na(survey4))==0,]
+fit = lm(Grade~.,survey4)
+summary(fit)
+plot(fit)
+
+```
+
+
+
+
+## Model selection
+
+This model is quite complex. Could we construct a simpler model that contains the same amount of information?
+
+
+
+```{r}
+
+#Full model
+fit1 <- lm(Grade ~ ., survey4)
+#Null model
+fit2 <- lm(Grade ~ 1, survey4)
+
+## Forward stepwise model selection using AIC criterion
+fit = step(lm(Grade~1,survey4),direction = "forward",scope = list(lower=fit2,upper=fit1))
+summary(fit)
+
+## Backwards stepwise model selection using AIC criterion
+fit = step(lm(Grade~.,survey4),direction = "backward",scope = list(lower=fit2,upper=fit1))
+summary(fit)
+
+```
+
+
+## Extra
+
+Can we predict who still lives at home?
+
+```{r}
+
+
+fit1 <- glm(Home ~ ., survey4,family = binomial)
+fit2 <- glm(Home ~ 1, survey4,family = binomial)
+fit = step(glm(Home~1,survey4,family = binomial),direction = "forward",scope = list(lower=fit2,upper=fit1))
+summary(fit)
+
+fit <- glm(Home ~ Cohort, survey4,family = binomial)
+summary(fit)
+
+table(survey4$Home,survey4$Cohort)
+
+table(survey2$Home,survey2$Cohort)
+
+```
+
+
+## Missing data
+
+```{r}
+image(is.na(survey)*1)
+sort(colSums(is.na(survey)))
+
+survey5 = survey[rowSums(is.na(survey))==0,c('Grade','StudyTime','Cohort','FBFriends','ExerciseTime','Working',"Pet","Home",'Clubs','Season')]
+```
+
+
+## PCA
+
+```{r}
+
+dataContinuous = as.data.frame(model.matrix(~.,survey5)[,-1])
+
+pca = prcomp(dataContinuous)
+
+summary(pca)$importance[,1:6]
+
+plot(pca$x[,1:2])
+
+sort(pca$rotation[,1])
+
+
+```
+
+Now lets scale
+
+```{r}
+
+pca = prcomp(dataContinuous,scale = TRUE)
+summary(pca)$importance[,1:6]
+plot(pca$x[,1:2])
+sort(pca$rotation[,1])
+
+plot(dataContinuous$FBFriends,dataContinuous$Working)
+cor(dataContinuous$FBFriends,dataContinuous$Working)
+
+sort(pca$rotation[,2])
+table(dataContinuous$CohortAMED3002.2019,dataContinuous$SeasonSpring)
+chisq.test(table(dataContinuous$CohortAMED3002.2019,dataContinuous$SeasonSpring))
+
+table(survey$Cohort,survey$Season)
+
+```
+
+
+## Clustering
+
+```{r}
+scaleData = t(t(dataContinuous)/apply(dataContinuous,2,sd))
+scaleData = na.omit(scaleData)
+df = scaleData
+df <- df[is.finite(rowSums(df)),]
+Hcluster = hclust(dist(t(scaleData)))
+plot(Hcluster)
+
+```
+
