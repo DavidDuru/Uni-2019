@@ -13,8 +13,6 @@ output:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 #devtools::install_github('cttobin/ggthemr')
-
-
 ```
 ###What is brain cancer?
 https://www.cancer.org.au/about-cancer/types-of-cancer/brain-cancer.html:

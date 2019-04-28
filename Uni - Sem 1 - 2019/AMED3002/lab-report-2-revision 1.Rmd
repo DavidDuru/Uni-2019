@@ -1,7 +1,7 @@
 ---
 title: "Analysing clinical data of patients diagnosed with brain cancer - lab report 2"
 author: "430189999"
-date: "14/3/2019"
+date: "5/4/2019"
 output:
   html_document:
     toc: true
@@ -12,10 +12,11 @@ output:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
 ```
 
 
-```{r Helper Functions}
+```{r Helper Functions, results = "hide"}
 
 ###REARRANGE COLS
 ##arrange df vars by position
@@ -84,10 +85,11 @@ require(dplyr)
 require(tibble)
 require(ggplot2)
 require(stringr)
-explore<- read_excel("~/GitHub/Uni-2019/Uni - Sem 1 - 2019/AMED3002/clinical_2014-01-16.xlsx")
+explore <- read_excel("~/Uni/Uni - Sem 1 - 2019/AMED3002/clinical_2014-01-16.xlsx")
 colnames(explore)
 glimpse(explore)
 #removing columns that are almost entirely empty
+explore
 masterDF<- explore[,-c(15:27)]
 masterDF <- masterDF[,-c(10)]
 ```
@@ -150,6 +152,8 @@ df$`OnStudy Therapy Chemo Agent Name`[df$`OnStudy Therapy Chemo Agent Name`=="NO
 df$`OnStudy Therapy Chemo Agent Name`[df$`OnStudy Therapy Chemo Agent Name`!="NO"] <- "YES"
 
 df.extended <- mutate(df, four.years = ifelse(`Survival (months)` >= 48, "YES","NO"))
+
+df
 ```
 
 ##Analysis
@@ -162,7 +166,9 @@ Assumptions:
 
 Hypothesis:
 ```{r}
+library(questionr)
 tbl <- table(df.extended$Gender, df.extended$four.years)
+odds.ratio(tbl)
 chisq.test(tbl)
 fisher.test(tbl)
 ```
@@ -173,18 +179,21 @@ The p-value of 0.91 and 0.81 with one degree of freedom suggests that gender is 
 We can perform dimension reduction to get an idea of how the variance in the data is distributed.
 
 We first need to perform data munging the data to do pca.
-```{r}
-#drop
+```{r, echo = FALSE, message = FALSE}
 library(plyr)
 library(dplyr)
+```
+
+
+```{r}
+#drop
+
 glimpse(df)
 
 colnames(df)
 df.pca <- df[-c(1)]
 df.pca <- df.pca[-c(20:21)]
 arrange.vars(df.pca, c("Survival (months)"=2))
-
-glimpse(df.pca)
 
 df.pca <- rename(df.pca,c('Steroid Dose Status' = 'hadSteroids'))
 df.pca <- rename(df.pca,c('Anti-Convulsant Status' = 'hadAntiConvulsant'))
@@ -193,76 +202,84 @@ df.pca <- rename(df.pca,c('OnStudy Therapy Chemo Agent Name' = 'hadChemo'))
 df.pca <- rename(df.pca,c('Age at Dx (years)' = 'ageRange'))
 df.pca <- rename(df.pca,c('Survival (months)' = 'monthsSurvived'))
 
-glimpse(df.pca)
-
 df.pca <- df.pca %>%  select(Gender, monthsSurvived, ageRange, Disease, hadSteroids, hadAntiConvulsant, hadRadio, hadChemo)
 
 character_vars <- lapply(df.pca, class) == "character"
 df.pca[, character_vars] <- lapply(df.pca[, character_vars], as.factor)
 
 df.pca <- na.omit(df.pca)
-
-dim(df.pca)
 ```
 
+
+
 ```{r}
+library(ggdendro)
+library(ape)
 
 dataContinuous = as.data.frame(model.matrix(~.,df.pca)[,-1])
-
 df3 <- dataContinuous
 
-df3 <- df3 %>% filter(df3$monthsSurvived > 0)
-df3$monthsSurvived <- log(df3$monthsSurvived)
+df3
 
-pca = prcomp(df3)
+df3 <- df3 %>% filter(df3$monthsSurvived > 0)
+pca = prcomp(df3, scale = TRUE)
 
 summary(pca)$importance[,1:6]
-
 plot(pca$x[,1:2])
-
 rownames(pca$rotation)
 
 sort(pca$rotation[,1])
 sort(pca$rotation[,2])
 
-hh = hclust(dist(df3))
+cor(df3$DiseaseGBM, df3$monthsSurvived)
 
-plot(hh, main = "")
-
+hh = hclust(dist(t(scale(df3))))
+ggdendrogram(hh, rotate = TRUE, theme_dendro = FALSE)
 ```
 
-```{r}
-#install.packages("devtools")
-#devtools::install_github("vqv/ggbiplot")
-#install_github("kassambara/factoextra")
+From PCA we can see the majority of the variance is centred around whether a patient had a GBM.
 
-library("devtools")
-library(ggbiplot)
-library("factoextra")
-pca2 = princomp(dataContinuous, cor = TRUE)
-
-p1 = ggscreeplot(pca2) + theme_bw(base_size = 20) + labs(y = "Prop. of explained variance")
-p2 = ggscreeplot(pca2,type = "cev") + theme_bw(base_size = 20) + labs(y = " Cumulative prop. of explained variance")
-gridExtra::grid.arrange(p1,p2,ncol=2)
-
-summary(pca2)
-result <- get_pca_var(pca2)
-head(result$contrib)
-
-
-
-
-```
-
+One observation we can make from the clustering is that patients that had steroid treatment to reduce inflamation also probably had anti-convulsant medication.
 
 We can perform ANOVA:
+
+Assumptions: normally distributed, iid
+Looking at the residual and qq plot they are approximately satisfied
+
+
 ```{r}
+library(ggfortify)
+df.aov <- df.pca
+result.aov <- aov(monthsSurvived ~ Disease * hadChemo, data = df.aov)
+summary(result.aov)
+autoplot(result.aov, which = 1:2)
 
 ```
 
-We can perform regression:
-```{r}
+We can conclude the type of disease has a significant effect on monthsSurvived
 
+We can perform stepwise regression to determine other good predictive
+Assumptions: normally distributed, iid 
+
+The residuals plot indicidates we dont have equal variance and the normal line is a bit wonky but I'm going to say they're approximately satified assumptions.
+
+```{r}
+#devtools::install_github('topepo/caret/pkg/caret')
+library(leaps)
+df.glm <- df.pca
+
+fit1 = lm(monthsSurvived ~ ., df.glm)
+fit2 = lm(monthsSurvived ~ 1, df.glm)
+
+fit3= step(lm(monthsSurvived ~ 1, df.glm), direction = "forward", scope = list(lower = fit2, upper = fit1))
+fit4= step(lm(monthsSurvived ~ ., df.glm), direction = "backward", scope = list(lower = fit2, upper = fit1))
+
+autoplot(fit4, which = 1:2)
+
+summary(fit3)
+summary(fit4)
 ```
+
+Both methods determined that age and whether a patient had chemo were the best predictors of monthsSurvived.
 
 

@@ -24,6 +24,7 @@
 #include<signal.h>
 #include<stdbool.h>
 #include<time.h>
+#define BOB 1
 void q1();
 void q5();
 void q6();
@@ -49,7 +50,7 @@ void q1(){
 void q5(){
     signal(SIGINT, SIG_IGN);
     while(true){
-        int seconds = sleep(100);
+        int seconds = sleep(BOB);
         printf("Seconds slept for %d\n", seconds);
     }
 

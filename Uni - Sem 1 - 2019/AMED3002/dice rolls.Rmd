@@ -1,0 +1,26 @@
+---
+title: "dice rolling"
+author: "Aidan"
+date: "16 April 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+Dice Rolling
+
+```{r}
+three.dice <- function(){
+  dice <- sample(1:6, size = 3, replace = TRUE)
+  return(sum(dice))
+}
+
+df <- replicate(2000, three.dice())
+
+hist(df)
+
+```
+

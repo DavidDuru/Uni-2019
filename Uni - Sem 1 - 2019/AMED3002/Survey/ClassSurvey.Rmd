@@ -334,14 +334,11 @@ pca = prcomp(dataContinuous)
 summary(pca)$importance[,1:6]
 plot(pca$x[,1:2])
 sort(pca$rotation[,1])
-
-
 ```
 
 Now lets scale
 
 ```{r}
-
 pca = prcomp(dataContinuous,scale = TRUE)
 summary(pca)$importance[,1:6]
 plot(pca$x[,1:2])
