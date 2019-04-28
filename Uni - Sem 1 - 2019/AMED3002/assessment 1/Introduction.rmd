@@ -1,0 +1,426 @@
+---
+title: "Group Assessment 1"
+date: "8/4/2019"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+    theme: "yeti"
+---
+
+###Load Libraries
+```{r load_libraries,results="hide",message=FALSE}
+##loading data
+library(readxl)
+library(dplyr)
+library(tibble)
+library(ggplot2)
+library(stringr)
+library(naniar)
+library(readr)
+library(crayon)
+library(tidyverse)
+library(ggfortify)
+library(GGally)
+library(leaps)
+library(caret)
+library(survival)
+library(rms)
+library(hablar)
+library(kableExtra)
+library(ggpubr)
+
+```
+
+###Load Data
+```{r,results="hide",message=FALSE, warning=FALSE}
+raw <- read_csv("https://raw.githubusercontent.com/mantissa-aidan/amed3002/master/All_sample_data.csv",
+    col_types = cols(CEBPA_Biallelic = col_factor(levels = c("y", 
+        "n")), CumulativeChemo = col_factor(levels = c("y", 
+        "n"))))
+
+```
+
+##Helper Functions
+```{r,results="hide",message=FALSE}
+###REARRANGE COLS
+##arrange df vars by position
+##'vars' must be a named vector, e.g. c("var.name"=1)
+arrange.vars <- function(data, vars){
+    ##stop if not a data.frame (but should work for matrices as well)
+    stopifnot(is.data.frame(data))
+
+    ##sort out inputs
+    data.nms <- names(data)
+    var.nr <- length(data.nms)
+    var.nms <- names(vars)
+    var.pos <- vars
+    ##sanity checks
+    stopifnot( !any(duplicated(var.nms)), 
+               !any(duplicated(var.pos)) )
+    stopifnot( is.character(var.nms), 
+               is.numeric(var.pos) )
+    stopifnot( all(var.nms %in% data.nms) )
+    stopifnot( all(var.pos > 0), 
+               all(var.pos <= var.nr) )
+
+    ##prepare output
+    out.vec <- character(var.nr)
+    out.vec[var.pos] <- var.nms
+    out.vec[-var.pos] <- data.nms[ !(data.nms %in% var.nms) ]
+    stopifnot( length(out.vec)==var.nr )
+
+    ##re-arrange vars by position
+    data <- data[ , out.vec]
+    return(data)
+}
+
+#USAGE
+#table <- data.frame(Time=c(1,2), In=c(2,3), Out=c(3,4), Files=c(4,5))
+#table
+##  Time In Out Files
+##1    1  2   3     4
+##2    2  3   4     5
+
+#arrange.vars(table, c("Out"=2))
+##  Time Out In Files
+##1    1   3  2     4
+##2    2   4  3     5
+
+#arrange.vars(table, c("Out"=2, "Files"=1, "Time"=4))
+##  Files Out In Time
+##1     4   3  2    1
+##2     5   4  3    2
+
+```
+##Cleaning
+```{r, results="hide",message=FALSE, warning = FALSE}
+df <- raw
+df <- df %>% select(-"PatientID", -"SampleID") 
+df$VitalStatus[df$VitalStatus == "Healthy, pooled CD34+"] <- "Alive"
+df$VitalStatus[df$VitalStatus == "Healthy, Individual BM MNC"] <- "Alive"
+df$VitalStatus[df$VitalStatus == "Healthy, Individual CD34+"] <- "Alive"
+df$VitalStatus[df$VitalStatus == "0.9"] <- "Unknown"
+
+df$CumulativeTreatmentTypeCount <- as.numeric(df$CumulativeTreatmentTypeCount)
+df$OverallSurvival <- as.numeric(df$OverallSurvival)
+df$PlateletCount <- as.numeric(df$PlateletCount)
+df$TimeOfCollectionRelativeToInclusion <- as.numeric(df$TimeOfCollectionRelativeToInclusion)
+df$WBC_Count <- as.numeric(df$WBC_Count)
+
+df$PercentBlastsInBM<- as.numeric(df$PercentBlastsInBM)
+df$PercentBlastsInPB<- as.numeric(df$PercentBlastsInPB)
+
+df$PriorMDS[df$PriorMDS == "Healthy, Individual BM MNC"] <- "y"
+df$PriorMDS[df$PriorMDS == "Healthy, Individual CD34+"] <- "y"
+df$PriorMDS[df$PriorMDS == "Healthy, pooled CD34+"] <- "y"
+
+df$AnyGeneTrailsGene[df$AnyGeneTrailsGene == "Healthy, Individual BM MNC"] <- "TRUE"
+df$AnyGeneTrailsGene[df$AnyGeneTrailsGene == "Healthy, Individual CD34+"] <- "TRUE"
+df$AnyGeneTrailsGene[df$AnyGeneTrailsGene == "Healthy, pooled CD34+"] <- "TRUE"
+
+#colnames(df)
+df <- arrange.vars(df, c("CumulativeTreatmentTypeCount"=1, "OverallSurvival"=2, "PlateletCount"=3))
+df <- arrange.vars(df, c("TimeOfCollectionRelativeToInclusion"=4, "WBC_Count"=5))
+
+#glimpse(df)
+factors = c(6:46)
+df[factors] <- lapply(df[factors], factor)
+df <- na.omit(df)
+
+dataContinuous = as.data.frame(model.matrix(~.,df)[,-1])
+pca = prcomp(dataContinuous)
+loadings <- as.data.frame(pca$rotation[,1:2])
+head(loadings)
+#summary(pca)$importance[,1:6]
+#plot(pca$x[,1:2])
+#sort(pca$rotation[,1])
+
+
+```
+##Analysis
+#Understanding the risk factors of leukemia
+
+### What is leukemia?
+#### leukemia is a type of cancer which develops in blood - forming tissues such as the bone marrow 
+#### It is usually caused by high numbers of white blood cells in the circulation 
+#### Hence testing for white blood cell counts could be useful in the diagnosis of leukemia
+#### Although, it is not directly used to diagnose cancer it can be used to indicate the need for further testing 
+
+### Statistics of leukemia
+#### Over 60, 000 Australians are currently living with leukemia 
+#### At least 13, 000 more Australians are newly diagnosed with leukemia each year 
+#### Around 4,900 of these individuals pass away due to leukemia each year 
+
+### AIM
+#### To raise awareness about the risk factors of leukemia, to allow people in risk groups to undergo frequent testing for leukaemia. This will allow individuals to be diagnosed earlier, possibly decreasing death rates
+
+### Target audience
+#### It is targeted to the general public 
+
+
+#### Analysis of data  
+
+
+#### Question: Does gender affect white blood cell count in individuals?
+
+#### Hypothesis:
+
+#### H0 = There is no difference in white blood cell count between males and females 
+#### H1 = There is a difference in white blood cell count between males and females 
+
+
+#### Analysis of data - comparing gender and white blood cell count 
+
+
+```{r}
+ggplot(df, aes(x = Gender, y = df$WBC_Count, fill = Gender)) + geom_boxplot()+labs(x = "GENDER", y = "WBC COUNT (x10^9 cells/litre)")
+```
+#### Figure 1: Boxplot comparing white blood cell counts between males and females.
+
+
+
+#### From figure 1, it can be observed that both boxplots are right skewed which means mean > median value. A greater median value as well as a greater interquartile range is seen in females compared to males. This indicates that females have a higher white blood cell count compared to males. However, males are observed to have more outliers present. 
+
+#### Violin plot is also used to show the probability density of data at different values
+
+
+```{r}
+
+ggplot(df, aes(x = factor(Gender), y = df$WBC_Count, fill = Gender)) + geom_violin()+labs(x = "GENDER", y = "WBC COUNT (x10^9 cells/litre)")
+```
+### Figure 2: Violin plot comparing white blood cell counts between males and females.
+
+#### Figure 2 shows that males have a higher distribution of white blood cell count compared to females. It also shows that females have a higher probability of having a white blood cell count of over 50 (x10^9 cells/litre).
+
+
+
+#### Conclusion: Results from figure 1 and 2 suggest that females have a higher white blood cell count compared to males. Hence, there is weak evidence against the null hypothesis. This indicates that females have a higher risk of developing leukemia compared to males. Hence, more frequent testing for cancer is needed.
+
+#### However, it must be noted that having a higher white blood cell count does not directly suggest a greater risk of developing leukemia in individuals. It is still important to monitor white blood cell counts to check for abnormally high levels which indicate the need for further testing. 
+
+
+
+#### Checking for further risk factors - Myelodysplastic syndromes (MDS)
+
+#### MDS are a group of diseases which affects the production of normal blood cells in the bone marrow 
+
+ 
+#### Question: Does MDS affect white blood cell count differently in males and females?
+
+#### Hypothesis: 
+#### H0 = MDS does not affect white blood cell count differently in males and females 
+#### H1 - MDS affects white blood cell count differently in males and females
+
+#### Two-way ANNOVA test 
+#### Assumption: Observations within each cell are normally distributed and have equal variances
+
+####Not the above fitted model is called additive model. It makes an assumption that the two factor variables are independent.
+
+
+#### Two-way ANOVA with interaction effect
+#### These two calls are equivalent
+
+
+```{r}
+res.aov3 <- aov(df$WBC_Count ~ df$Gender * df$PriorMDS, data = df)
+res.aov3 <- aov(df$WBC_Count ~ df$Gender + df$PriorMDS + df$Gender:df$PriorMDS, data = df )
+            
+summary(res.aov3)
+```
+#### Figure 3: Summary of ANOVA test 
+
+
+
+#### From the ANOVA test, it is observed that prior MDS has an effect on white blood cell counts in individuals (Pr(>F) value is < 0.05). However, the interaction of MDS and gender does not seem to have an impact on white blood cell counts (Pr(>F) value is > 0.05). Hence, there is evidence against the null hypothesis (H0)
+
+
+#### Interaction plot for two way ANOVA test
+
+```{r}
+interaction.plot(x.factor = df$PriorMDS, trace.factor = df$Gender, 
+                 response = df$WBC_Count, fun = mean, 
+                 type = "b", legend = TRUE, 
+                 xlab = "MDS", ylab="WBC count",
+                 pch=c(1,19), col = c("#00AFBB", "#E7B800"))
+```
+#### Figure 4, shows that interaction plot between MDS, Gender and white blood cell counts
+
+#### Both lines in the interaction plot seem very similar. This indicates that no significant interaction effect is present 
+
+
+
+#### Conclusion: Figure 3 and 4 shows that the interaction between MDS and Gender does not influence white blood cell count. This suggests that all patients with prior MDS have equal risk for developing leukemia.
+
+####Acute Myeloid Leukemia results specifically from muations in developing bone marrow cells. This leads to unrestrained proliferation of leukemic white blood cells usually accompanied by anemia, impaired blood clotting, and enlargement of the lymph nodes, liver, and spleen.
+
+####What factors (prior diagnosis, age at diagnosis, gender) contribute to Overall survival
+```{r}
+#How many rows and columns are in the data?
+nrow(df)
+ncol(df)
+#How many of the subjects were Female?
+sum(df$Gender == "Female")
+#How many were Male?
+sum(df$Gender == "Male")
+```
+
+####Relationship between relapse and vitality status
+
+```{r}
+#How many subjects had a prior diagnosis of MPN?
+PriorMDSpositive <- sum(df$PriorMDS == "y")
+summary(PriorMDSpositive)
+#How many subjects who had a prior diagnosis of MPN are dead?
+dead <- sum(df$VitalStatus == "Dead")
+summary(dead)
+sum(dead=PriorMDSpositive)
+```
+
+```{r}
+
+bold.italic.blue = element_text(face = "bold.italic", colour = "blue")
+
+ggplot(df, aes(df$PriorMalignancyNonMyeloid, df$OverallSurvival,fill=df$PriorMDS)) + 
+  geom_boxplot() + 
+  labs(title = "Duration of survival from AML after prior malgnancy", x = "Prior Maglignany", y="Survival (Days after Diagnosis)", fill="Prior \nMyelodysplastic \nsyndrom \ndiagnosis") +
+  theme( axis.title.x = bold.italic.blue, axis.title.y = bold.italic.blue, plot.title = element_text( hjust=0.5, vjust=1, face='bold.italic', colour = "blue"), panel.border = element_rect(linetype = "dashed", fill = NA))
+
+```
+
+##### Analysis
+
+```{r}
+
+SurvivaLAOV=aov(df$OverallSurvival ~ df$PriorMalignancyNonMyeloid * df$PriorMDS)
+
+summary(SurvivaLAOV)
+
+Taby=table(df$PriorMalignancyNonMyeloid,  df$VitalStatus)
+
+chisq.test(Taby)
+
+
+```
+
+**Figure .** **Effects of prior morbidities on Survival** This figure demonstrates whether survival (in days) after diagnosis of AML is affected by previous individual history of cancer (p > 0.05) and whether their is a relationship between prior malignancy and vital status in follow up (p < 0.05) and the OR in this relationship (p < 0.0005). Assumptions that the data is normally distributed and is independant have been satisfied.</font>
+
+Although the data on figure 2 demonstrates that the difference between surival (in days) based on whether you had a prior malignancy or not is non-significant (One-Way Anova Analysis), a chi-squared analysis deteremined that there was a relationship between prior malignancy and whether the patient would be alive when it was time for follow up (p < 0.05). This was further solidified with an Odds Ratio analysis, which determined with 95% confidence that 97.5% of people with prior malignancies will not survive until the follow up date.
+
+#### Relationship between MDS and WBC Count {.tabset .tabset-fade}
+
+Myelodysplastic Syndromes (MDS) are cancers or morbidities which cause abnormalities in precusers of white blood cells in the bone marrow. These syndromes result in immune cells not maturing, and therefore becomming healthy cells. Some of these syndromes have the potential to develop in to AML.
+
+An important question is to determine whether there is a relation between being diagnoses with prior MDS and WBC populations in AML patients.
+
+**Hypotheses** 
+**H0**: There will be no significant difference between patients who have been previous diagnosed with MDS before AML diagnosis and those that haven't prior to MDS diagnosis.
+**H1**: There will be some sigificant, directional difference between patients with prior MDS diagnosis and those without prior MDS diagnisis before AML diagnosis.
+
+##### MDS Vs WBC count
+
+```{r}
+
+MDSplot1=ggplot(df,aes(x=df$PriorMDS,y=df$WBC_Count, fill=df$PriorMDS)) + geom_boxplot() + labs(title = "MDS Diagnosis effect on WBC count", x = "Diagnosed with \nMyelodysplastic Syndrome", y="WBC Count \n(Cells/L of blood)") + theme(legend.position = "none")
+
+MDSplot2=ggplot(df,aes(x=df$PriorMDS,y=df$WBC_Count, fill=df$PriorMalignancyNonMyeloid)) + geom_boxplot() + labs(title = "MDS Diagnosis effect on WBC count", x = "Diagnosed with \nMyelodysplastic Syndrome", y="WBC Count \n(Cells/L of blood)", fill="Prior \nNon Myeloid \nNeoplasm")
+
+MDSplot1
+
+
+
+```
+
+
+#####MDS + PriorNO vs WBC
+
+```{r}
+
+MDSplot2
+
+```
+
+
+##### Statistical Analysis
+
+
+```{r}
+
+aov(df$WBC_Count ~ df$PriorMalignancyNonMyeloid * df$PriorMDS)
+
+summary(aov(df$WBC_Count ~ df$PriorMalignancyNonMyeloid * df$PriorMDS))
+
+
+```
+
+Based on the results seen in the above figures, we can observe that there is no statistical difference bewteen Prior MDS and Non-Prior MDS AML patients WBC count, thus we are unable to reject the null hypothesis. As previous research would suggest that our results are incorrect, we can explain our result due to the uneven number of Prior MDS positive observations, and if we has a larger population, perhabs there would be a more significant difference.
+
+####  WBC on Overall Survival {.tabset .tabset-fade}
+
+xt we can review the affect that white blood cell (WBC) proliferation in AML has on survival time in days. Normally in cases of infection and non-AML/ALL neoplasms, WBCs would normally proliferate to increase their number for fighting the morbidity. This is usually to the patients benefit, however in AML, this may be different. Here we will examine if WBC proliferation is beneficial or detrimental to patient survival.
+
+We would question whether having a high WBC counter can be a prognostic indicator.
+
+**Hypotheses**:
+**H0**: WBC will have no significant relationship with Overall survival time or whether patient survived until follow up.
+**H1**: WBC population number will have a significant corelation effect to the survival and vitality of the patient.
+
+##### WBC v overall Survival
+
+```{r}
+df4 = df[df$OverallSurvival < 2000,]
+
+LMFIT = lm(df$OverallSurvival ~ df$WBC_Count)
+LMFIT2 = lm(df4$OverallSurvival ~ df4$WBC_Count)
+
+LMPLOT1=ggplot(df,aes(x =df$WBC_Count, y=df$OverallSurvival )) +geom_point() + theme_bw() + geom_smooth(method = 'lm') + labs(x = "WBCs/L", y="Survial (Days)")
+
+LMPLOT2=ggplot(df4,aes(x =df4$WBC_Count, y=df4$OverallSurvival )) +geom_point() + theme_bw() + geom_smooth(method = 'lm') + labs(x = "WBCs/L", y="Survial (Days)")
+
+ggarrange(LMPLOT1, LMPLOT2, labels = c("A", "B")) 
+```
+
+##### WBC v Survival Linear regression analysis
+
+```{r}
+summary(LMFIT)
+summary(LMFIT2)
+
+```
+
+##### WBC v Vitality status
+
+```{r}
+WBCplot3=ggplot(df,aes(x=df$VitalStatus,y=df$WBC_Count, fill=df$VitalStatus)) + geom_boxplot() + labs(title = "WBC v Vitality status on check up", x = "Survival Until Check up date", y="WBC Count \n(Cells/L of blood)") + theme(legend.position = "none")
+
+WBCplot3
+
+```
+
+##### WBC v Vitality analysis
+
+```{r}
+
+WBCvVITALITYaov=aov(df$WBC_Count ~ df$VitalStatus)
+
+summary(WBCvVITALITYaov)
+
+```
+
+<font size="1"> **Figure 3.** **(a. Effects WBC Proliferation on Survival in raw data.), (b. Effects WBC Proliferation on Survival without outliers) ** This figure the negative corelation between increasing WBC population and Survival (days). Assumptions that the data is normally distributed and is independant have been are unsatisfied in both raw and outlier fixed data.</font>
+
+
+From Figure 3a, we can see that there is a clear negative correlation between increasing WBC populations and overall survival of patients (p < 0.05). Although this isnt statitically significant in Figure 3b, this overall negative relationship remains. This can be explained as more neoplastic cancerous cells mean more oportunity to metastisise in to other tissue and form new tumourous growths.
+
+
+##Data Dictionary
+```{r}
+dataDictionary <- read_delim("https://raw.githubusercontent.com/mantissa-aidan/amed3002/master/dataDictionary.csv", 
+    "\t", escape_double = FALSE, col_names = FALSE, 
+    trim_ws = TRUE)
+
+dataDictionary %>%
+  kable() %>%
+  kable_styling()
+```

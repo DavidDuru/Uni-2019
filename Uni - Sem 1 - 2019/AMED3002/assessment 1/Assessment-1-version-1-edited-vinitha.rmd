@@ -21,22 +21,23 @@ library(stringr)
 library(naniar)
 library(readr)
 library(crayon)
-library(tidyverse)
-library(ggfortify)
-library(GGally)
-library(leaps)
-library(caret)
-library(survival)
-library(rms)
-library(hablar)
+
+#for fancy ggpairs plot
+#library(GGally)
+
+#for clustering on catgeorical variables
+#library(FactoMineR)
+
+#easy regression table?
+#library(stargazer)
+
+#nice looking tables
 library(kableExtra)
-library(scatterplot3d)
-library(survminer)
 
 ```
 ###Load Data
 ```{r}
-raw <- read_csv("https://raw.githubusercontent.com/mantissa-aidan/amed3002/master/All_sample_data.csv",
+df <- read_csv("https://raw.githubusercontent.com/mantissa-aidan/amed3002/master/All_sample_data.csv",
     col_types = cols(CEBPA_Biallelic = col_factor(levels = c("y", 
         "n")), CumulativeChemo = col_factor(levels = c("y", 
         "n"))))
@@ -120,12 +121,9 @@ ggplot(fit$model, aes_string(x = names(fit$model)[2], y = names(fit$model)[1])) 
 
 ```
 
-
-
 ###Cleaning
 ```{r, results = 'asis'}
-df <- raw
-df <- df %>% select(-"PatientID", -"SampleID") 
+df$VitalStatus
 df$VitalStatus[df$VitalStatus == "Healthy, pooled CD34+"] <- "Alive"
 df$VitalStatus[df$VitalStatus == "Healthy, Individual BM MNC"] <- "Alive"
 df$VitalStatus[df$VitalStatus == "Healthy, Individual CD34+"] <- "Alive"
@@ -139,36 +137,23 @@ df$PlateletCount <- as.numeric(df$PlateletCount)
 df$TimeOfCollectionRelativeToInclusion <- as.numeric(df$TimeOfCollectionRelativeToInclusion)
 df$WBC_Count <- as.numeric(df$WBC_Count)
 
-df$PercentBlastsInBM<- as.numeric(df$PercentBlastsInBM)
-df$PercentBlastsInPB<- as.numeric(df$PercentBlastsInPB)
+c <- unique(df$PriorMalignancyType)
+c
 
-df$PriorMDS[df$PriorMDS == "Healthy, Individual BM MNC"] <- "y"
-df$PriorMDS[df$PriorMDS == "Healthy, Individual CD34+"] <- "y"
-df$PriorMDS[df$PriorMDS == "Healthy, pooled CD34+"] <- "y"
-
-df$AnyGeneTrailsGene[df$AnyGeneTrailsGene == "Healthy, Individual BM MNC"] <- "TRUE"
-df$AnyGeneTrailsGene[df$AnyGeneTrailsGene == "Healthy, Individual CD34+"] <- "TRUE"
-df$AnyGeneTrailsGene[df$AnyGeneTrailsGene == "Healthy, pooled CD34+"] <- "TRUE"
-
+colnames(df)
 df <- arrange.vars(df, c("CumulativeTreatmentTypeCount"=1, "OverallSurvival"=2, "PlateletCount"=3))
 df <- arrange.vars(df, c("TimeOfCollectionRelativeToInclusion"=4, "WBC_Count"=5))
 
-factors = c(6:46)
+glimpse(df)
+factors = c(6:48)
 df[factors] <- lapply(df[factors], factor)
 df <- na.omit(df)
 
 dataContinuous = as.data.frame(model.matrix(~.,df)[,-1])
 pca = prcomp(dataContinuous)
-#summary(pca)$importance[,1:6]
-#plot(pca$x[,1:2])
+summary(pca)$importance[,1:6]
+plot(pca$x[,1:2])
 sort(pca$rotation[,1])
-
-loadings <- as.data.frame(pca$rotation[,1:5])
-head(loadings)
-
-head(loadings)%>%
-  kable() %>%
-  kable_styling()
 ```
 
 ##Tab Heading {.tabset .tabset-fade .tabset-pills}
@@ -206,7 +191,7 @@ head(loadings)%>%
 #### Analysis of data - comparing gender and white blood cell count 
 ```{r}
 
-
+ggplot(df, aes(x = factor(Gender), y = df$WBC_Count, fill = Gender)) + geom_boxplot()+labs(x = "GENDER", y = "WBC COUNT (x10^9 cells/litre)")
 
 ```
 #### Figure 1: Boxplot comparing white blood cell counts between males and females.
@@ -218,7 +203,7 @@ head(loadings)%>%
 
 ```{r}
 
-
+ggplot(df, aes(x = factor(Gender), y = df$WBC_Count, fill = Gender)) + geom_violin()+labs(x = "GENDER", y = "WBC COUNT (x10^9 cells/litre)")
 ```
 #### Figure 2: Violin plot comparing white blood cell counts between males and females.
 
@@ -243,7 +228,8 @@ head(loadings)%>%
 #### Assumption: Observations within each cell are normally distributed and have equal variances
 
 ```{r}
-
+res.aov2 <- aov(df$WBC_Count ~ df$Gender + df$PriorMDS, data = df)
+summary(res.aov2)
 ```
 #### Level of significance = 0.05 
 
@@ -257,14 +243,21 @@ head(loadings)%>%
 #### These two calls are equivalent
 
 ```{r}
-
+res.aov3 <- aov(df$WBC_Count ~ df$Gender * df$PriorMDS, data = df)
+res.aov3 <- aov(df$WBC_Count ~ df$Gender + df$PriorMDS + df$Gender:df$PriorMDS, data = df )
+            
+summary(res.aov3)
 ```
 #### Pr(>F) value is > 0.05, there is weak evidence against the null hypothesis. 
 
 
 #### Interaction plot for two way ANNOVA test
 ```{r}
-
+interaction.plot(x.factor = df$PriorMDS, trace.factor = df$Gender, 
+                 response = df$WBC_Count, fun = mean, 
+                 type = "b", legend = TRUE, 
+                 xlab = "MDS", ylab="WBC count",
+                 pch=c(1,19), col = c("#00AFBB", "#E7B800"))
 ```
 
 
@@ -274,7 +267,7 @@ head(loadings)%>%
 ###David
 
 ```{r}
-levels(df$PriorMDS)
+#Code goes here
 ```
 
 Assumptions for MLR:
@@ -290,56 +283,38 @@ Assumptions for MLR:
     5. No perfect collinearity: As is to be expected, all the different weight     measurements have a very strong correlation with eachother, over 0.955 for     all.
 
 ###Aidan
-
 ```{r}
-library(reshape2)
-df.heat <- df
+library(tidyverse)
+library(ggfortify)
+library(GGally)
+library(leaps)
+library(caret)
+library(survival)
+library(rms)
 
-df.heat <- rename(df.heat, TreatmentCount = CumulativeTreatmentTypeCount , TimeToInc = TimeOfCollectionRelativeToInclusion)
-
-ggpairs(df.heat[c(1:5)])
-
-colnames(df.heat)
-
-cormat <- round(cor(df.heat[c(1:5)]),2)
-
-melted_cormat <- melt(cormat)
-head(melted_cormat)
-
-library(ggplot2)
-ggplot(data = melted_cormat, aes(x=Var1, y=Var2, fill=value)) + geom_tile() + theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 10))
-
-
-```
-###Backwards stepwise regression
-```{r}
-df.mlr <- df %>% filter(WBC_Count < 300, PlateletCount < 500)
-df.mlr <- df %>% filter(WBC_Count > 0, PlateletCount > 0, OverallSurvival > 0)
-df.mlr <- df %>% filter(OverallSurvival > 60, VitalStatus == "Dead" || VitalStatus == "Alive")
+glimpse(df)
+df.mlr <- df %>% filter(OverallSurvival, VitalStatus == "Dead" || VitalStatus == "Alive")
 #df.mlr <- df %>% filter(OverallSurvival, VitalStatus == "Dead")
 df.mlr$PercentBlastsInBM <- as.numeric(df.mlr$PercentBlastsInBM)
 df.mlr$PercentBlastsInPB <- as.numeric(df.mlr$PercentBlastsInPB)
-#df.mlr[c(1:5)] <- log(df.mlr[c(1:5)])
-#df.mlr[c(1)] <- log(df.mlr[c(1)])
-
-df.mlr <- df.mlr %>% mutate_if(is.numeric, list(~na_if(., Inf))) %>% 
-  mutate_if(is.numeric, list(~na_if(., -Inf)))
-
+df.mlr$OverallSurvival <- log(df.mlr$OverallSurvival)
 df.mlr <- na.omit(df.mlr)
-
-
+df.mlr <- df.mlr %>% select(-"PatientID", -"SampleID")
 df.mlr2 <- df.mlr
-#df.mlr2
+
+ggplot(df.mlr, aes(x = OverallSurvival)) + geom_histogram()
 
 regsubset.out = regsubsets(OverallSurvival ~ ., data = df.mlr2, method = "backward")
-backwards_sum = summary(regsubset.out)
-backwards = regsubset.out
-plot(backwards_sum$rsq, xlab = "num variables", ylab = "R square", type = "b", main = "R Squared")
-plot(backwards_sum$adjr2, xlab = "num variables", ylab = "adjusted r squared", type = "b", main = "Adjusted Rsquared ")
-plot(backwards_sum$cp, xlab = "num variables", ylab = "complexity param", type = "b", main = "Complexity parameter")
-plot(backwards_sum$bic, xlab = "num variables", ylab = "bic", type = "b", main = "BIC")
+exhaustive_sum = summary(regsubset.out)
+exhaustive = regsubset.out
+plot(exhaustive_sum$rsq, xlab = "num variables", ylab = "R square", type = "b", main = "R Squared")
+plot(exhaustive_sum$adjr2, xlab = "num variables", ylab = "adjusted r squared", type = "b", main = "Adjusted Rsquared ")
+plot(exhaustive_sum$cp, xlab = "num variables", ylab = "complexity param", type = "b", main = "Complexity parameter")
+plot(exhaustive_sum$bic, xlab = "num variables", ylab = "bic", type = "b", main = "BIC")
 
-#backwards_sum
+df.mlr3 <- df.mlr %>% select("CumulativeTreatmentTypeCount", "OverallSurvival", "PlateletCount", "WBC_Count", "TimeOfCollectionRelativeToInclusion")
+
+ggpairs(df.mlr3)
 
 cv_full = train(
   OverallSurvival ~ CumulativeTreatmentTypeCount + PlateletCount + TimeOfCollectionRelativeToInclusion + WBC_Count, df.mlr2,
@@ -350,92 +325,56 @@ cv_full = train(
   )
 )
 
-final <- cv_full$finalModel
+exhaustive_sum2 = summary(regsubset.out)
 
-autoplot(final, which = 1:2)
+plot(exhaustive_sum2$rsq, xlab = "num variables", ylab = "R square", type = "b", main = "R Squared")
+plot(exhaustive_sum2$adjr2, xlab = "num variables", ylab = "adjusted r squared", type = "b", main = "Adjusted Rsquared ")
+plot(exhaustive_sum2$cp, xlab = "num variables", ylab = "complexity param", type = "b", main = "Complexity parameter")
+plot(exhaustive_sum2$bic, xlab = "num variables", ylab = "bic", type = "b", main = "BIC")
 
-pred.mlr1 <- predict(final, df.mlr2)
+exhaustive_sum2
 
-compare.mlr <- data.frame(prediction = pred.mlr1, observation = df.mlr2$OverallSurvival)
+control <- trainControl(method = "repeatedcv", 
+                        number = 10, 
+                        repeats = 6)
 
-boxplot(compare.mlr, horizontal=TRUE, main="comparison")
+formula = OverallSurvival ~ CumulativeTreatmentTypeCount + PlateletCount + BoneMarrowTransplant + WBC_Count + CumulativeChemo
 
+formulaSurv = SurvObj ~ CumulativeTreatmentTypeCount + PlateletCount + BoneMarrowTransplant + WBC_Count + CumulativeChemo
 
-```
+model_lm <- train(formula, data = df.mlr2, method='lm',
+                  trControl = control, tuneLength = 10)
 
-```{r}
-regsubset.out = regsubsets(OverallSurvival ~ ., data = df.mlr2, method = "forward")
-forward_sum = summary(regsubset.out)
-forward = regsubset.out
-plot(forward_sum$rsq, xlab = "num variables", ylab = "R square", type = "b", main = "R Squared")
-plot(forward_sum$adjr2, xlab = "num variables", ylab = "adjusted r squared", type = "b", main = "Adjusted Rsquared ")
-plot(forward_sum$cp, xlab = "num variables", ylab = "complexity param", type = "b", main = "Complexity parameter")
-plot(forward_sum$bic, xlab = "num variables", ylab = "bic", type = "b", main = "BIC")
+summary(model_lm)
 
-#forward_sum
+model_lm
 
-cv_full = train(
-  OverallSurvival ~ CumulativeTreatmentTypeCount + PlateletCount + TimeOfCollectionRelativeToInclusion, df.mlr2,
-  method = "lm",
-  trControl = trainControl(
-    method = "cv", number = 10,
-    verboseIter = FALSE
-  )
-)
-
-final <- cv_full$finalModel
-
-autoplot(final, which = 1:2)
-
-pred.mlr1 <- predict(final, df.mlr2)
-
-compare.mlr <- data.frame(prediction = pred.mlr1, observation = df.mlr2$OverallSurvival)
-
-boxplot(compare.mlr, horizontal=TRUE, main="comparison")
-
-```
-
-```{r}
-library(pec)
-df.cox <- df %>% filter(OverallSurvival, VitalStatus == "Dead" || VitalStatus == "Alive")
-#df.mlr <- df %>% filter(OverallSurvival, VitalStatus == "Dead")
-df.cox$PercentBlastsInBM <- as.numeric(df.cox$PercentBlastsInBM)
-df.cox$PercentBlastsInPB <- as.numeric(df.cox$PercentBlastsInPB)
-
-df.cox <- df.cox %>% filter(WBC_Count < 300, PlateletCount < 500)
-df.cox <- df.cox %>% filter(WBC_Count > 0, PlateletCount > 0, OverallSurvival > 0 || OverallSurvival < 1000)
+result <- lm(formula,df.mlr2)
+autoplot(result, which = 1:2)
 
 
+df.cox <- df.mlr
 df.cox$SurvObj <- with(df.cox, Surv(OverallSurvival, VitalStatus == "Dead"))
 
 #Kaplan Meirer curve
-km1 <- npsurv(formula = SurvObj ~ BoneMarrowTransplant , data = df.cox)
-survplot(km1)
+km1 <- survfit(formula = SurvObj ~ BoneMarrowTransplant , data = df.cox)
+
+plot(km1)
 
 km2 <- npsurv(formula = SurvObj ~ CumulativeChemo , data = df.cox)
 survplot(km2)
 
-km3 <- npsurv(formula = SurvObj ~ Gender , data = df.cox)
-survplot(km3)
+km2 <- npsurv(formula = SurvObj ~ Gender , data = df.cox)
+survplot(km2)
 
-formulaSurv = SurvObj ~ CumulativeTreatmentTypeCount + PlateletCount + TimeOfCollectionRelativeToInclusion + WBC_Count
-
-cox <- coxph(formulaSurv, data = df.cox)
-summary(cox)
-
-summary(cox)
-#proportional hazards assumption
-ggcoxdiagnostics(cox, type = "schoenfeld")
-#linear realtions for continuous predictors
-ggcoxdiagnostics(cox, type = "martingale")
-#skewing varaibles
-ggcoxdiagnostics(cox, type = "deviance", ox.scale = "time")
+cox <- coxph(SurvObj ~ ., data = df.cox)
+cox
 
 
 
-  
+
+
 ```
-
 
 ###Tab1
 
