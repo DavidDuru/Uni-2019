@@ -1,0 +1,8 @@
+1. #include
+
+The #include directive will include the contents of a file into the current source file.
+
+
+2. #define
+
+#define preprocessor will be a preprocessor variable that can be used within your program. It will be evaluated during the compilation process.

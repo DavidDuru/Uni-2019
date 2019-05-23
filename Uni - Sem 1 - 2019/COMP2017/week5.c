@@ -34,7 +34,7 @@ void quitProgramHandler();
 void (*func)();
 
 int main(int argc, char ** argv){
-    q6();
+    q5();
 }
 
 void q1(){
