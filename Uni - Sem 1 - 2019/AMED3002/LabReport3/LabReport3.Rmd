@@ -1,0 +1,168 @@
+---
+title: "Title Here"
+author: "430189999"
+date: "data here"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+    theme: "yeti"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+###Domain Information
+```{r load_libraries,results="hide",message=FALSE}
+##loading data
+library(readxl)
+require(dplyr)
+require(tibble)
+require(ggplot2)
+require(stringr)
+require(naniar)
+library(readr)
+```
+#Loading Data
+```{r}
+## The following is how I read in the data after downloading from TCGA.
+
+# http://www.maths.usyd.edu.au/u/ellisp/AMED3002/clinical.cart.2018-04-23.tar.gz
+# http://www.maths.usyd.edu.au/u/ellisp/AMED3002/gdc_download_20180423_005811.tar.gz
+# http://www.maths.usyd.edu.au/u/ellisp/AMED3002/gdc_sample_sheet.2018-04-24.tsv
+
+
+
+## First I will read in the counts by finding the count files for all
+## subjects
+filenames <- list.files("gdc_download_20180423_005811/", pattern = "*gz", full.names = TRUE, 
+    recursive = TRUE)
+
+## Now I will read these in one by one.
+library(readr)
+ldf <- sapply(filenames, read_delim, delim = "\t", col_names = FALSE, simplify = FALSE)
+ldf2 <- lapply(ldf, function(x) as.numeric(as.matrix(x)[, 2]))
+counts <- do.call(cbind, ldf2)
+
+## I'll manipulate the row names
+rownames(counts) <- unlist(lapply(strsplit(as.character(as.matrix(ldf[[1]])[, 
+    1]), split = "\\."), function(x) x[1]))
+
+
+
+## Now I'll manipulate the column names using the sample sheet
+
+colnames(counts) <- unlist(lapply(strsplit(colnames(counts), split = "/"), function(x) x[4]))
+sampleSheet = read.delim("gdc_sample_sheet.2018-04-24.tsv")
+map = sampleSheet$Case.ID
+names(map) = sampleSheet$File.Name
+colnames(counts) = map[colnames(counts)]
+
+
+## Now lets match them up to the clincal data I downloaded.
+clinical = read.delim("clinical.cart.2018-04-23/clinical.tsv")
+rownames(clinical) = clinical$submitter_id
+
+
+## I think these might be country codes or batches
+batch = unlist(lapply(strsplit(colnames(counts), "-"), function(x) x[2]))
+names(batch) = colnames(counts)
+
+
+## Lets check out some samples statistics
+head(colSums(counts))
+```
+
+##Data Dictionary
+
+```{r}
+
+```
+
+###Cleaning
+
+```{r clean_data,results="hide",message=FALSE,warning=FALSE}
+
+```
+
+```{r,results="hide",message=FALSE}
+```
+
+##Tab Heading {.tabset .tabset-fade .tabset-pills}
+
+Plots
+
+###Tab1
+
+```{r exploration_plotting}
+#ggplot(df, aes(x=df$`Age at Dx (years)`, fill = df$`Age at Dx (years)`)) +
+#  geom_bar(position = "dodge2") +
+#    labs(title = "Age/Gender distribution",  fill = "Age", x = "Gender", y = "Count")
+```
+
+###Tab 2
+
+```{r}
+#both distrbutions are approx normal
+#ggplot(df, aes(x=df$Gender, fill = df$`Age at Dx (years)`)) +
+#  geom_bar(position = "dodge2") +
+#    labs(title = "Age/Gender distribtion",  fill = "Age", x = "Gender", y = "Count")
+```
+
+###Tab 3
+
+
+```{r}
+#ggplot(df, aes(x=df$Race, fill = df$`Age at Dx (years)`)) +
+#  geom_bar(position = "dodge2") +
+#    labs(title = "Race/Gender included in study", x = "Gender", y = "Count", fill = "Age")
+```
+
+##Tab Section 2{.tabset .tabset-fade .tabset-pills}
+
+###Tab 2.1
+
+```{r}
+#ggplot(df, aes(x = df$Gender, y = df$`Survival (months)`, fill = df$Gender)) + geom_boxplot() +
+#facet_wrap(~ df$Disease, ncol = 50) +
+#  labs(title = "Survival time between men and women, by disease", x = "Gender", y = "Survival Time")
+```
+
+###Tab 2.2
+
+```{r}
+##ggplot(df,aes(x = df$`Age at Dx (years)`, y = df$`Survival (months)`, colour = df$Disease)) +
+#  geom_point() +
+#  geom_jitter(height = 0.05) +
+#  labs(colour = "Disease", y="Months Survived", x="Age", title="Comparing Age and Survival by Disease type") +
+#  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 10))
+```
+
+
+###Tab 2.3
+
+```{r}
+#ggplot(df,aes(x=df$`Age at Dx (years)`, y=df$`Survival (months)`, colour = df$`OnStudy Therapy Radiation Type`, #shape = df$`OnStudy Therapy Chemo Agent Name`)) +
+#  geom_point() +
+#  facet_wrap(~df$Disease) +
+#  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 7)) +
+#  labs(shape = "patient had chemo", colour = "patient had RT", y="Age at diagnosis",x="Months survived" ,title = "Comparing age and survival time by treatment type, between diseases")
+```
+
+##Analysis
+
+```{r analysis}
+
+```
+
+```{r}
+```
+
+```{r}
+
+```
+
+
+
+
