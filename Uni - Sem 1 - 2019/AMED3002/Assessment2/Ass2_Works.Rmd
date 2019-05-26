@@ -1,0 +1,141 @@
+---
+title: "Assessment2_Works"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+## We want to reproduce these results
+
+Twenty genes displayed AML-specific expression changes that were not found in the normal hematopoietic cells. Subsequent analyses using microarray data from 285 additional AML patients confirmed expression changes for 13 of the 20 genes. Seven genes (BIK, CCNA1, FUT4, IL3RA, HOMER3, JAG1, WT1) displayed increased expression in AML, while 6 genes (ALDHA1A, PELO, PLXNC1, PRUNE, SERPINB9, TRIB2) displayed decreased expression. 
+
+Quantitative RT/PCR studies for the 7 over-expressed genes were performed in an independent set of 9 normal and 21 pediatric AML samples. All 7 over-expressed genes displayed an increased expression in the AML samples compared to normals. Three of the 7 over-expressed genes (WT1, CCNA1, and IL3RA) have already been linked to leukemogenesis and/or AML prognosis, while little is known about the role of the other 4 over-expressed genes in AML.
+
+```{r}
+#BiocManager::install("GEOquery")
+#biocLite("GEOquery")
+
+library(Biobase)
+library(GEOquery)
+library(dplyr)
+
+library(edgeR)
+library(limma)
+#these are some genes that were particularly highly expressed
+#we'll try to find them using DEA
+high_result <- c("BIK", "CCNA1", "FUT4", "IL3RA", "HOMER3", "JAG1", "WT1")
+#low expressed results from study
+low_result <- c("ALDHA1A", "PELO", "PLXNC1", "PRUNE", "SERPINB9", "TRIB2")
+#Load in the soft file
+gds3057 <- getGEO(filename='GDS3057_full.soft.gz')
+
+#naming some stuff to use later
+disease <- gds3057@dataTable@columns
+df <- gds3057@dataTable@table
+eset <- df
+
+#Subsetting just the important expression data
+eset <- eset[,3:66]
+
+#There is a key/value relationship between the genes
+#Donm't know why, it results it duplicate genes being recorded
+rname <- df$ID_REF
+
+#renamingrows of expression set
+rownames(eset) <- rname
+
+#dropping unncessary info
+#renaming rows of disease state
+dRowNames <- disease$sample
+disease <- disease %>% select(-sample)
+disease <- disease %>% select(-cell.type,-description)
+rownames(disease) <- dRowNames
+
+#disease looks like this now
+head(disease)
+
+#construct design matrix
+#One hot encoding
+design <- model.matrix(~disease.state, disease)
+
+#looks like this
+head(design)
+head(eset)
+
+#We can fit a linear model
+fit <- lmFit(eset, design)
+#Do heaps of T-tests
+fit <- eBayes(fit, robust = TRUE)
+
+summary(fit)
+
+#we can see which genes were high and lowly expressed by this model
+results <- decideTests(fit[, "disease.statenormal"])
+summary(results)
+
+
+#Now we can do the same thing with DGE, see if we get better results
+dge <- DGEList(counts = eset[, rownames(design)])
+dge <- calcNormFactors(dge)
+
+#Some form of variance stabilisation
+v <- voom(dge, design, plot = TRUE)
+
+#Fitting the linear model with the voom data
+fit <- lmFit(v, design)
+fit <- eBayes(fit, robust = TRUE)
+
+#See how results differ from previous testing method
+results <- decideTests(fit[, "disease.statenormal"])
+summary(results)
+
+#I'm a bit worried about this histogram
+#I think it should be uniform, but there's loads of 0's
+hist(fit$p.value[, 2])
+
+#where our p values sit around 0
+volcanoplot(fit, coef = "disease.statenormal")
+
+#A list of the top genes
+topGenes = topTable(fit, coef = "disease.statenormal", n = 1e+06, p.value = 0.05)
+
+########
+#PROPER RESULTS HERE
+
+#here are the pvalues
+topGenes
+check_final <- rownames(topGenes)
+
+#These are the features with the lowest p values
+top_10_lowest_pvalues_ids <- check_final[1:10]
+
+top_10_lowest_pvalues_ids
+
+pvals <- topGenes$P.Value
+
+#we have to look up which features correspond to which specific genes
+Id_to_gene <- df %>% filter(df$ID_REF %in% top_10_lowest_pvalues)
+
+#you can see which id corresponds to which gene here
+Id_to_gene
+
+high_result
+
+low_result
+
+
+results2 <- df[,1:2]
+
+results2
+
+results3 <- results2 %>% filter(df$ID_REF %in% top_10_lowest_pvalues)
+
+results3 
+
+
+```
+
