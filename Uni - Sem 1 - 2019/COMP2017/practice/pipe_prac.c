@@ -6,16 +6,6 @@
 #include <fcntl.h>
 #include <string.h>
 
-// // main parent
-// void main_parent(int input, int output){
-
-// }
-
-// //main child
-// void main_child(int input, int output){
-
-// }
-
 // main parent
 int main_parent(int input, int output){
     puts("PARENT: just doing nothing, but happy about it");
@@ -73,8 +63,6 @@ int main_parent(int input, int output){
     int randnum = (rand() % 3) + 1;
     printf("%d\n",randnum);
 
-
-
     return 0;
 }
 
@@ -105,7 +93,7 @@ int main_child(int input, int output){
         char choose[3][20] = {"rock", "paper", "scissors"};
         char * choice = choose[randnum];
         printf("CHILD: %s!\n", choice);
-        write(output, (void *)choice, strlen(game) + 1);
+        write(output, (void *)choice, 1024);
         i++;
         if(i == 3) return 0;
         sleep(3);
