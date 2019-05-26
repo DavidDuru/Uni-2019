@@ -5,11 +5,45 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
+source("https://bioconductor.org/biocLite.R")
+
+# Load the BiocInstaller package
+library(BiocInstaller)
+
+# Check R version
+version
+
+# Explicit syntax to check the Bioconductor version
+BiocInstaller::biocVersion()
+
+library(BSgenome)
+
+packageVersion("BSgenome")
+
+
 ```
+
+#looking at yeast as an example
+```{r}
+#BiocManager::install("BSgenome.Scerevisiae.UCSC.sacCer3")
+yeastGnome <- library(BSgenome.Scerevisiae.UCSC.sacCer3)
+
+```
+
+limma course from DataCamp
+```{r}
+
+
+```
+
+
 
 ## We want to reproduce these results
 
-Twenty genes displayed AML-specific expression changes that were not found in the normal hematopoietic cells. Subsequent analyses using microarray data from 285 additional AML patients confirmed expression changes for 13 of the 20 genes. Seven genes (BIK, CCNA1, FUT4, IL3RA, HOMER3, JAG1, WT1) displayed increased expression in AML, while 6 genes (ALDHA1A, PELO, PLXNC1, PRUNE, SERPINB9, TRIB2) displayed decreased expression. Quantitative RT/PCR studies for the 7 over-expressed genes were performed in an independent set of 9 normal and 21 pediatric AML samples. All 7 over-expressed genes displayed an increased expression in the AML samples compared to normals. Three of the 7 over-expressed genes (WT1, CCNA1, and IL3RA) have already been linked to leukemogenesis and/or AML prognosis, while little is known about the role of the other 4 over-expressed genes in AML.
+Twenty genes displayed AML-specific expression changes that were not found in the normal hematopoietic cells. Subsequent analyses using microarray data from 285 additional AML patients confirmed expression changes for 13 of the 20 genes. Seven genes (BIK, CCNA1, FUT4, IL3RA, HOMER3, JAG1, WT1) displayed increased expression in AML, while 6 genes (ALDHA1A, PELO, PLXNC1, PRUNE, SERPINB9, TRIB2) displayed decreased expression. 
+
+Quantitative RT/PCR studies for the 7 over-expressed genes were performed in an independent set of 9 normal and 21 pediatric AML samples. All 7 over-expressed genes displayed an increased expression in the AML samples compared to normals. Three of the 7 over-expressed genes (WT1, CCNA1, and IL3RA) have already been linked to leukemogenesis and/or AML prognosis, while little is known about the role of the other 4 over-expressed genes in AML.
 
 
 ```{r}
@@ -80,47 +114,15 @@ pal = colorRampPalette(c("blue", "red"))(ncol(counts2))
 pairs(pca2$x[, 1:3], col = pal[rank(colSums(counts2))])
 
 
-#if you print this below out summary out (it has a lot of output)
-
-#summary(pca2)$importance[,1:200]
-
-#we can see the first 200 pc's account for almost 90 of the variance, so from that we can say these are the most important genes for predicting primary diagnoses???
-
-#I'm really not sure how to interpret, or whether I should even be testing agaisnt primary diagnosis
-
-
-
 ```
 
-This is some method of normalising our information, because we can have a problem where one gene seems to be expressed a lot in our data but that's actually just a statistical anomaly and not indicative of whats actually happening.
 
-I don't understand the volcano plot... but it should tell us whether we've found a group of genes that actually do something.. or that we've found something actually significant... I think????
-
-I know it's a plot of many p-values of genes but it's not really clear to me how to interpret it
 
 
 ```{r}
 library(edgeR)
 library(limma)
-design <- model.matrix(~primary_diagnosis, clinical)
 
-countsDGE <- counts2[, rownames(design)]
-
-dge <- DGEList(countsDGE)
-dge <- calcNormFactors(dge)
-
-v <- voom(dge, design, plot = TRUE)
-fit <- lmFit(v, design)
-fit <- eBayes(fit, robust = TRUE)
-
-pval = fit$p.value[, 2]
-DE = p.adjust(pval, "fdr") < 0.05
-
-
-topGenes = topTable(fit, coef = "primary_diagnosisC17.9", n = 1e+06, p.value = 0.05)
-dim(topGenes)
-hist(fit$p.value[, 2])
-volcanoplot(fit, coef = "primary_diagnosisC17.9")
 ```
 
 I'm not a biologist so I don't understand how to relate these genes I've found to some larger library of genes. I'm not even sure what pathways are. Pathways are something like a series of genes that produce a phenotype?
@@ -131,61 +133,17 @@ What codes/naming convetions should I be matching up, searching for?
 
 ```{r}
 library(biomaRt)
- 
-## select mart and data set
-bm <- useMart("ensembl")
-bm <- useDataset("mmusculus_gene_ensembl", mart = bm)
 
-# Get ensembl gene ids and GO terms
-EG2GO <- getBM(mart = bm, attributes = c("ensembl_gene_id", "go_id", "name_1006"))
-
-# examine result
-head(EG2GO, 15)
-
-# Remove blank entries
-EG2GO <- EG2GO[EG2GO$go_id != "", ]
-
-# convert from table format to list format
-
-GOID2gene <- split(EG2GO$ensembl_gene_id, EG2GO$name_1006)
-GOID2gene <- lapply(GOID2gene, intersect, rownames(counts2))
-
-# Only look at pathways with 10 or more genes
-GOID2gene <- GOID2gene[unlist(lapply(GOID2gene, length)) > 10]
-
-GOID2gene
 ```
 
 ```{r}
-#library(org.Mm.eg.db)
-#map1 = select(org.Mm.eg.db, keys = rownames(t(counts2)), columns = "SYMBOL", keytype = "ENSEMBL")
-#map1 = map1[!duplicated(map1$ENSEMBL), ]
-#map = map1$ENSEMBL
-#names(map) = toupper(map1$SYMBOL)
 
-
-#library(GSA)
-# Download pathway information and save in local directory From this
-# website:
-# http://software.broadinstitute.org/gsea/msigdb/download_file.jsp?filePath=/resources/msigdb/6.1/c5.all.v6.1.symbols.gmt
-#GOgene = GSA.read.gmt("c5.all.v6.1.symbols.gmt")
-#GOID2gene = GOgene[[1]]
-#names(GOID2gene) = GOgene[[2]]
-#GOID2gene = lapply(GOID2gene, function(x) intersect(map[x], names(pval)))
-
-# Only look at pathways with 10 or more genes
-#GOID2gene <- GOID2gene[unlist(lapply(GOID2gene, length)) > 10]
 
 ```
 Trying to perform a fishers test but I can't get the pathways
 
 ```{r}
-#GOpval = unlist(lapply(GOID2gene, function(x) {
-#    pathway = names(DE) %in% x
-#    tab = table(DE, pathway)
-    #fisher.test(tab)$p.value
-#}))
-#head(sort(GOpval))
+
 ```
 
 
