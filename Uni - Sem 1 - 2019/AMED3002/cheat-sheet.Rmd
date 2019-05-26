@@ -1,0 +1,200 @@
+---
+title: "AnswerSheet"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Student information
+
+Name: Ellis Patrick
+
+SID: 12345678
+
+# Instructions
+
+- Use pre-filled rmarkdown file to help arrange your answers.
+- Submit html file to turnitin.
+
+
+
+# Question 1 - HIV
+
+Dr P. J. Solomon and the Australian National Centre in HIV Epidemiology and Clinical Research performed a study on HIV transmission and survival. They recorded the following characteristics of all patients who entered a HIV clinical of the course of the study. 
+
+
+| Variable | Description                                      |  
+|-------|-----------------------------------------------------|  
+|state | Grouped state of origin: "NSW "includes ACT and "other" is WA, SA, NT and TAS.|
+|sex|Sex of patient.|
+|diag|(Julian) date of diagnosis.|
+|death|(Julian) date of death or end of observation.|
+|status|"A" (alive) or "D" (dead) at end of observation.|
+|T.categ |Reported transmission category.|
+|age|Age (years) at diagnosis.|
+
+## Load data
+
+To load the data use the link http://www.maths.usyd.edu.au/u/ellisp/AMED3002/HIV.csv as follows:
+
+
+```{r echo=TRUE}
+
+HIV = read.csv('http://www.maths.usyd.edu.au/u/ellisp/AMED3002/HIV.csv')
+```
+
+
+## Data properties
+
+a. How many variables and observations are in the dataset *HIV*?  
+
+**Answer:** There are 7 variables and 2843 observations
+
+```{r}
+head(HIV)
+dim(HIV)
+```
+
+
+b. Comment on the class of these variables and how they are stored in R.  
+
+**Answer:** All of the variables appear to be appropriately stored in R, representative of their actual class.
+
+- state is categorical stored as a factor
+- sex is categorical stored as a factor
+- diag is numeric stored as an integer
+- death is numeric stored as an integer
+- status is categorical stored as a factor
+- T.categ is categorical stored as a factor
+- age is numeric stored as an integer
+
+
+```{r}
+sapply(HIV,class)
+```
+
+
+c. Is there any missing data in this dataset?
+
+**Answer:** No.
+
+```{r}
+sum(is.na(HIV))
+```
+
+
+
+
+## State vs sex
+
+The researches are interested in the characteristics for the pople being diagnosed in each state. Specifically, they would like to know whether there were differing numbers of men and women that were diagonsed in each state.
+
+
+d. What types of variables should sex and state be?  
+
+**Answer:** Sex and state should both be categorical.
+
+e. What is an appropriate statistical test that could be used by the researchers to test this question?  
+
+**Answer:** A chi-square test.
+
+f. What is the corresponding null and alternate hypothesis?  
+
+**Answer:** The null is that there Sex and state is no relationship between sex and state, the alternate is that there is a relationship.
+
+g. Construct a contingency table using the variables *sex* and *state* and comment on any striking features.   
+
+**Answer:** There are alot more men than women in the data set. NSW appears to have the most subjects.
+
+```{r}
+table(HIV$state,HIV$sex)
+```
+
+
+h. Perform the appropriate test. 
+
+```{r}
+
+chisq.test(table(HIV$state,HIV$sex))
+
+```
+
+
+i. Using a siginficance threshold of 0.05 what would you conclude from this test?  
+
+**Answer:** As the p-value is greater than 0.05 I would conclude that there is not enough evidence to reject the hypothesis that there is no relationship between sex and state. 
+
+j. What were the assumptions for this test? Comment on them in the context of the observed data.  
+
+**Answer:** We assume that all the observations are independent and that the expected count for each cell is greater than five.
+
+```{r}
+chisq.test(table(HIV$state,HIV$sex))$expected
+```
+
+
+
+
+## Mortalilty differences between States.
+
+The researchers would like to know if there is some difference between the states in the outcomes for HIV patients. They decide that they would like to see if the time between diagnosis and death are different between states.
+
+k. Create a new dataset containing only patients that died using the *status* variable.
+
+```{r}
+HIVD = HIV[HIV$status=='D',]
+
+```
+
+
+l. Create a new variable for the *time that patients survived* by subtracting *diag* from *death*.
+
+```{r}
+S = HIVD$death-HIVD$diag
+
+```
+
+
+m. Visualise the time to death for the patients in each state using a boxplot. Comment on any striking features.
+
+**Answer:** There might be a few outliers in all of the states. The variances of each state are reasonably similar. The data could be right skewed for each state. The median of queensland appears to be the lowest and victoria the highest.
+
+```{r}
+boxplot(S~HIVD$state)
+
+```
+
+
+n. Use an ANOVA to test whether the time between diagnosis and death are different between states.
+
+```{r}
+fit =aov(S~HIVD$state)
+summary(fit)
+
+```
+
+
+o. Using a siginficance threshold of 0.01 what would you conclude from this test? 
+
+**Answer:** The p-value is less that 0.01 so we have enough evidence to reject the hypothesis that time between diagnosis and death are the same between states.
+
+p. What were the assumptions for this test? Comment on them in the context of the observed data and fitted model.
+
+**Answer:** We assume independence, normality and equal variances. The variances appear equal however in the qqplot there might be evidence that the residuals are not normal. We should be very careful making conclusions. Transforming the data so that it is not right-skewed might help.
+
+```{r}
+plot(fit)
+```
+
+
+q. Are there any other tests that you could perform to help the researchers interpret these results. If yes, what would you inform the researchers?  
+
+**Answer:** We could perform a Tukey HSD test. We would conclude that most of the differences in mean appear to be between NSW and Victoria and Victoria and Qld.
+
+```{r}
+
+TukeyHSD(aov(S~HIVD$state))
+```
+

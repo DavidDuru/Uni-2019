@@ -1,0 +1,75 @@
+---
+title: "LabReport3"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## We want to reproduce these results
+
+Twenty genes displayed AML-specific expression changes that were not found in the normal hematopoietic cells. Subsequent analyses using microarray data from 285 additional AML patients confirmed expression changes for 13 of the 20 genes. Seven genes (BIK, CCNA1, FUT4, IL3RA, HOMER3, JAG1, WT1) displayed increased expression in AML, while 6 genes (ALDHA1A, PELO, PLXNC1, PRUNE, SERPINB9, TRIB2) displayed decreased expression. 
+
+Quantitative RT/PCR studies for the 7 over-expressed genes were performed in an independent set of 9 normal and 21 pediatric AML samples. All 7 over-expressed genes displayed an increased expression in the AML samples compared to normals. Three of the 7 over-expressed genes (WT1, CCNA1, and IL3RA) have already been linked to leukemogenesis and/or AML prognosis, while little is known about the role of the other 4 over-expressed genes in AML.
+
+
+#Attempting to load data
+```{r}
+BiocManager::install("GEOquery")
+#biocLite("GEOquery")
+
+library(Biobase)
+library(GEOquery)
+library(dplyr)
+
+
+
+gds3057 <- getGEO(filename='GDS3057_full.soft.gz')
+
+colnames(Table(gds3057))
+
+Meta(gds3057)$feature_count
+Meta(gds3057)$sample_count
+
+Table(gds3057)[1:100,1:6]
+
+
+tablecols <- gds3057@dataTable@columns
+
+disease_state <- tablecols$disease.state
+df <- gds3057@dataTable@table
+df2 <- df[,1:69]
+
+id_ref <- df2[,1]
+ident <- df2[,2]
+
+df2 <- df[,3:66]
+
+df3 <- data.frame(t(df2))
+colnames(df3) <- ident
+
+
+patient_id <- rownames(df3)
+patient_id
+df3 <- cbind(patient_id, df3)
+df3 <- cbind(disease_state, df3)
+head(df3)
+
+boxplot(df3[,3] ~ df3$disease_state)
+
+testframe[!duplicated(lapply(testframe, summary))]
+
+library(ggplot2)
+
+ggplot(df3, aes(x = colnames(df3), y = df3$MIR4640))
+
+```
+
+
+
+
+
+
+
+

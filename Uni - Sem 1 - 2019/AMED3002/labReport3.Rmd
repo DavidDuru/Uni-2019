@@ -1,0 +1,105 @@
+---
+title: "LabReport3"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+## We'll load a count, samplesheet and clinical data file
+
+load(url("http://www.maths.usyd.edu.au/u/ellisp/AMED3002/melanoma.RData"))
+
+```
+
+```{r}
+library(ggplot2)
+library(ggfortify)
+library(rlang)
+library(dplyr)
+
+counts2 = counts[rowMeans(counts) > 20, ]
+counts2 <- counts2[, !duplicated(colnames(counts2))]
+```
+
+If we plot the first two principle components we see they acccount for 15% and 2.5% of variation.
+
+We can see theres does appear to be some structure.
+```{r}
+# Perform PCA
+pca = prcomp(t(counts2), scale = TRUE)
+
+autoplot(pca)
+```
+Further scaling and plotting the first 3 three pc's reveals some apparent structure between each pc.
+
+We can try to see a relationship between the pca's an primary diagnoses but there are many levels of diagnosis.
+So if there is some relationship it's unclear.
+
+```{r}
+cpm1 = apply(counts2, 2, function(x) x/sum(x)) * 1e+06
+
+pca1 = prcomp(t(cpm1), scale = TRUE)
+
+pairs(pca1$x[, 1:3], col = as.numeric(clinical$primary_diagnosis))
+pal = colorRampPalette(c("blue", "red"))(ncol(counts))
+pairs(pca1$x[, 1:3], col = pal[rank(colSums(counts))])
+
+```
+
+Once we adjust for multiple multiple hypothesis testing we can see the relationship becomes stronger.
+```{r}
+library(edgeR)
+dge = DGEList(counts2)
+x2 <- calcNormFactors(dge, method = "TMM")
+cpm2 <- cpm(x2)
+cpm2 = cpm2[rownames(counts2), ]
+
+pca2 = prcomp(t(cpm2), scale = TRUE )
+
+pairs(pca2$x[, 1:3], col = as.factor(clinical$primary_diagnosis))
+pal = colorRampPalette(c("blue", "red"))(ncol(counts2))
+pairs(pca2$x[, 1:3], col = pal[rank(colSums(counts2))])
+
+#if you print this below out summary out (it has a lot of output)
+
+#summary(pca2)$importance[,1:200]
+
+#we can see the first 200 pc's account for almost 90 of the variance, so from that we can say these are the most important genes for predicting primary diagnoses???
+
+#I'm really not sure how to interpret, or whether I should even be testing for agaisnt primary diagnosis
+
+
+
+```
+
+This is some method of normalising our information, because we can have a problem where one gene seems to be expressed a lot in our data but that's actually just a statistical anomaly and not indicative of whats actually happening.
+
+I don't understand the volcano plot... but it should tell us whether we've found a group of genes that actually do something.. I think????
+
+```{r}
+library(edgeR)
+library(limma)
+design <- model.matrix(~primary_diagnosis, clinical)
+
+countsDGE <- counts2[, rownames(design)]
+
+dge <- DGEList(countsDGE)
+dge <- calcNormFactors(dge)
+
+v <- voom(dge, design, plot = TRUE, scale = TRUE)
+fit <- lmFit(v, design)
+fit <- eBayes(fit, robust = TRUE)
+
+topGenes = topTable(fit, coef = "primary_diagnosisC17.9", n = 1e+06, p.value = 0.05)
+dim(topGenes)
+hist(fit$p.value[, 2])
+volcanoplot(fit, coef = "primary_diagnosisC17.9")
+```
+
+
+
+

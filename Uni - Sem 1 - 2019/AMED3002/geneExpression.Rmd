@@ -1,0 +1,209 @@
+---
+title: "Title Here"
+author: "430189999"
+date: "data here"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+    theme: "yeti"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+###Domain Information
+```{r load_libraries,results="hide",message=FALSE}
+##loading data
+library(readxl)
+require(dplyr)
+require(tibble)
+require(ggplot2)
+require(stringr)
+require(naniar)
+library(readr)
+
+getwd()
+```
+#Loading Data
+```{r}
+counts = read.delim("http://bowtie-bio.sourceforge.net/recount/countTables/bottomly_count_table.txt", 
+    row.names = 1)
+pheno = read.delim("http://bowtie-bio.sourceforge.net/recount/phenotypeTables/bottomly_phenodata.txt", 
+    sep = " ", row.names = 1)
+
+glimpse(counts)
+
+glimpse(pheno)
+
+```
+
+##Exploration
+```{r}
+# Ignore lowly expressed genes. Why should we consider doing this?
+counts2 = counts[rowMeans(counts) > 20, ]
+
+# Perform PCA
+pca = prcomp(t(counts2), scale = TRUE)
+
+## Now lets see if this structure means anything
+pairs(pca$x[, 1:3], col = as.numeric(pheno$strain))
+pairs(pca$x[, 1:3], col = as.numeric(as.factor(pheno$experiment.number)))
+pairs(pca$x[, 1:3], col = as.numeric(as.factor(pheno$lane.number)))
+
+# Lets also look at total reads.  Create a color ramp.
+pal = colorRampPalette(c("blue", "red"))(ncol(counts))
+pairs(pca$x[, 1:3], col = pal[rank(colSums(counts))])
+
+# We can create functions in R. This function makes an MA-plot
+MAplot = function(dataset, sampleI, sampleJ) {
+    M = log(dataset[, sampleJ] + 1) - log(dataset[, sampleI] + 1)
+    A = log(dataset[, sampleJ] + 1) + log(dataset[, sampleI] + 1)
+    plot(A, M, main = paste("MA-plot for", sampleJ, "vs", sampleI))
+    abline(h = 0, col = 2, lwd = 2)
+}
+
+MAplot(counts, "SRX033480", "SRX033488")
+
+# Or use the MA-plot function from edgeR.
+# https://bioconductor.org/packages/release/bioc/html/edgeR.html
+
+# If you have an old version of R, you might need to use
+# source('https://bioconductor.org/biocLite.R') biocLite('edgeR') to install
+# packages from bioconductor, as opposed to the code given in the
+# instructions on the website.
+
+
+#source('https://bioconductor.org/biocLite.R') 
+#biocLite('edgeR')
+#library(edgeR)
+
+maPlot(counts$SRX033480, counts$SRX033488)
+
+
+```
+
+```{r}
+# cpm1 = t(t(counts2)/colSums(counts2))*1000000 cpm1 =
+# prop.table(counts2)*1000000 cpm1 =
+# sweep(counts2,2,colSums(counts2),'/')*1000000
+
+cpm1 = apply(counts2, 2, function(x) x/sum(x)) * 1e+06
+
+pca1 = prcomp(t(cpm1), scale = TRUE)
+
+pairs(pca1$x[, 1:3], col = as.numeric(pheno$strain))
+pairs(pca1$x[, 1:3], col = as.numeric(as.factor(pheno$experiment.number)))
+pairs(pca1$x[, 1:3], col = as.numeric(as.factor(pheno$lane.number)))
+pal = colorRampPalette(c("blue", "red"))(ncol(counts))
+pairs(pca1$x[, 1:3], col = pal[rank(colSums(counts))])
+
+```
+```{r}
+# Lets use the edgeR package.
+# https://bioconductor.org/packages/release/bioc/html/edgeR.html
+
+library(edgeR)
+dge = DGEList(counts)
+x2 <- calcNormFactors(dge, method = "TMM")
+cpm2 <- cpm(x2)
+cpm2 = cpm2[rownames(counts2), ]
+
+pca2 = prcomp(t(cpm2), scale = TRUE)
+
+pairs(pca2$x[, 1:3], col = as.numeric(pheno$strain))
+pairs(pca2$x[, 1:3], col = as.numeric(as.factor(pheno$experiment.number)))
+pairs(pca2$x[, 1:3], col = as.numeric(as.factor(pheno$lane.number)))
+pal = colorRampPalette(c("blue", "red"))(ncol(counts))
+pairs(pca2$x[, 1:3], col = pal[rank(colSums(counts))])
+```
+
+
+###Cleaning
+
+```{r clean_data,results="hide",message=FALSE,warning=FALSE}
+
+```
+
+```{r,results="hide",message=FALSE}
+
+```
+
+##Tab Heading {.tabset .tabset-fade .tabset-pills}
+
+Plots
+
+###Tab1
+
+```{r exploration_plotting}
+#ggplot(df, aes(x=df$`Age at Dx (years)`, fill = df$`Age at Dx (years)`)) +
+#  geom_bar(position = "dodge2") +
+#    labs(title = "Age/Gender distribution",  fill = "Age", x = "Gender", y = "Count")
+```
+
+###Tab 2
+
+```{r}
+#both distrbutions are approx normal
+#ggplot(df, aes(x=df$Gender, fill = df$`Age at Dx (years)`)) +
+#  geom_bar(position = "dodge2") +
+#    labs(title = "Age/Gender distribtion",  fill = "Age", x = "Gender", y = "Count")
+```
+
+###Tab 3
+
+
+```{r}
+#ggplot(df, aes(x=df$Race, fill = df$`Age at Dx (years)`)) +
+#  geom_bar(position = "dodge2") +
+#    labs(title = "Race/Gender included in study", x = "Gender", y = "Count", fill = "Age")
+```
+
+##Tab Section 2{.tabset .tabset-fade .tabset-pills}
+
+###Tab 2.1
+
+```{r}
+#ggplot(df, aes(x = df$Gender, y = df$`Survival (months)`, fill = df$Gender)) + geom_boxplot() +
+#facet_wrap(~ df$Disease, ncol = 50) +
+#  labs(title = "Survival time between men and women, by disease", x = "Gender", y = "Survival Time")
+```
+
+###Tab 2.2
+
+```{r}
+##ggplot(df,aes(x = df$`Age at Dx (years)`, y = df$`Survival (months)`, colour = df$Disease)) +
+#  geom_point() +
+#  geom_jitter(height = 0.05) +
+#  labs(colour = "Disease", y="Months Survived", x="Age", title="Comparing Age and Survival by Disease type") +
+#  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 10))
+```
+
+
+###Tab 2.3
+
+```{r}
+#ggplot(df,aes(x=df$`Age at Dx (years)`, y=df$`Survival (months)`, colour = df$`OnStudy Therapy Radiation Type`, #shape = df$`OnStudy Therapy Chemo Agent Name`)) +
+#  geom_point() +
+#  facet_wrap(~df$Disease) +
+#  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 7)) +
+#  labs(shape = "patient had chemo", colour = "patient had RT", y="Age at diagnosis",x="Months survived" ,title = "Comparing age and survival time by treatment type, between diseases")
+```
+
+##Analysis
+
+```{r analysis}
+
+```
+
+```{r}
+```
+
+```{r}
+
+```
+
+
+
+
