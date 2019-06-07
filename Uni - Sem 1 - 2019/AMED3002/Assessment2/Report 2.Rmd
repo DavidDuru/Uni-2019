@@ -359,6 +359,27 @@ pvals <- topGenes$P.Value
 #we have to look up which features correspond to which specific genes
 Id_to_gene <- df %>% filter(df$ID_REF %in% top_10_lowest_pvalues_ids)
 
+#Now that we have identified the important genes, we can identifty the important pathways.
+
+# We identify the top 12 differentially expressed pathways throughout all the samples
+
+enrichkegga = kegga(fit, geneid = eset$`Gene ID`, species = "Hs")
+topPathways = topKEGG(enrichkegga, number=12)
+
+# Then we can view the pathway of choice with and identify if any of the top differentially pathways have our top differentially expressed genes.
+
+## pathview(topPathways2, pathway.id = #pathway id of choice) 
+
+# None of the pathways have our genes.
+
+
+# Next we determine how differentially expressed the pathways that do have our genes are and again view the actually pathway with pathview function. We determine, the pathways with our genes do not have much differential expression.
+
+enrichkegga2 = kegga(fit %in% NewIDrEfs, geneid = IDsGene, species = "Hs")
+topPathways2 = topKEGG(enrichkegga2, number=20) 
+
+## pathview(topPathways2, pathway.id = #pathway id of choice) 
+
 ```
 
 ##Analysis
