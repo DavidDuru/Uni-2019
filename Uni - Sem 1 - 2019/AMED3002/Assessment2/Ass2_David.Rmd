@@ -1,0 +1,275 @@
+---
+title: "Assessment2_Works"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+## We want to reproduce these results
+
+Twenty genes displayed AML-specific expression changes that were not found in the normal hematopoietic cells. Subsequent analyses using microarray data from 285 additional AML patients confirmed expression changes for 13 of the 20 genes. Seven genes (BIK, CCNA1, FUT4, IL3RA, HOMER3, JAG1, WT1) displayed increased expression in AML, while 6 genes (ALDHA1A, PELO, PLXNC1, PRUNE, SERPINB9, TRIB2) displayed decreased expression. 
+
+Quantitative RT/PCR studies for the 7 over-expressed genes were performed in an independent set of 9 normal and 21 pediatric AML samples. All 7 over-expressed genes displayed an increased expression in the AML samples compared to normals. Three of the 7 over-expressed genes (WT1, CCNA1, and IL3RA) have already been linked to leukemogenesis and/or AML prognosis, while little is known about the role of the other 4 over-expressed genes in AML.
+
+```{r}
+#BiocManager::install("GEOquery")
+#biocLite("GEOquery")
+
+library(Biobase)
+library(GEOquery)
+library(dplyr)
+
+library(edgeR)
+library(limma)
+#these are some genes that were particularly highly expressed
+#we'll try to find them using DEA
+up_regulated <- c("BIK", "CCNA1", "FUT4", "IL3RA", "HOMER3", "JAG1", "WT1")
+#low expressed results from study
+down_regulated <- c("ALDHA1A", "PELO", "PLXNC1", "PRUNE", "SERPINB9", "TRIB2")
+#Load in the soft file
+gds3057 <- getGEO(filename='GDS3057_full.soft.gz')
+
+#naming some stuff to use later
+disease <- gds3057@dataTable@columns
+
+head(disease)
+
+df <- gds3057@dataTable@table
+eset <- df
+
+#Subsetting just the important expression data
+eset <- eset[,3:66]
+
+#There is a key/value relationship between the genes
+#Donm't know why, it results it duplicate genes being recorded
+rname <- df$ID_REF
+
+#renamingrows of expression set
+rownames(eset) <- rname
+
+#dropping unncessary info
+#renaming rows of disease state
+dRowNames <- disease$sample
+disease <- disease %>% select(-sample)
+disease <- disease %>% select(-cell.type,-description)
+rownames(disease) <- dRowNames
+
+#disease looks like this now
+head(disease)
+
+#construct design matrix
+#One hot encoding
+design <- model.matrix(~disease.state, disease)
+
+#looks like this
+head(design)
+head(eset)
+
+#We can fit a linear model
+fit <- lmFit(eset, design)
+#Do heaps of T-tests
+fit <- eBayes(fit, robust = TRUE)
+
+summary(fit)
+
+#we can see which genes were high and lowly expressed by this model
+results <- decideTests(fit[, "disease.statenormal"])
+summary(results)
+
+
+#Now we can do the same thing with DGE, see if we get better results
+dge <- DGEList(counts = eset[, rownames(design)])
+dge <- calcNormFactors(dge)
+
+#Some form of variance stabilisation
+v <- voom(dge, design, plot = TRUE)
+
+#Fitting the linear model with the voom data
+fit <- lmFit(v, design)
+fit <- eBayes(fit, robust = TRUE)
+
+#See how results differ from previous testing method
+results <- decideTests(fit[, "disease.statenormal"])
+summary(results)
+
+#I'm a bit worried about this histogram
+#I think it should be uniform, but there's loads of 0's
+hist(fit$p.value[, 2])
+
+#where our p values sit around 0
+volcanoplot(fit, coef = "disease.statenormal", highlight = 12, names = df$IDENTIFIER)
+
+#A list of the top genes
+topGenes = topTable(fit, coef = "disease.statenormal", n = 1e+06, p.value = 0.05)
+
+########
+#PROPER RESULTS HERE
+
+#here are the pvalues
+topGenes
+check_final <- rownames(topGenes)
+
+#These are the features with the lowest p values
+top_10_lowest_pvalues_ids <- check_final[1:10]
+
+top_10_lowest_pvalues_ids
+
+pvals <- topGenes$P.Value
+
+#we have to look up which features correspond to which specific genes
+Id_to_gene <- df %>% filter(df$ID_REF %in% top_10_lowest_pvalues_ids)
+
+#you can see which id corresponds to which gene here
+Id_to_gene
+
+up_regulated
+
+down_regulated
+
+
+```
+
+#Matching up our genes to our ID's
+```{r}
+
+#Pulling out only the genes we found to be significant
+joinMe = NULL
+joinMe$ID_REF <- rownames(topGenes)
+joinMe$pval <- topGenes$adj.P.Val
+
+joinMe <- as.data.frame(joinMe)
+
+joinMe2 <- as.data.frame(df[,1:2])
+
+head(joinMe)
+head(joinMe2)
+
+results <- inner_join(joinMe,joinMe2, by = "ID_REF")
+results
+
+
+
+```
+## This is all plotting
+
+```{r}
+
+#Checking phenotype of a gene we found to be significant
+
+df2 <- df %>% filter(IDENTIFIER == "ALDH1A1")
+
+df2 <- df2[,3:66]
+ 
+df2
+ccna_exp <- df2[1,]
+ccna_exp
+
+what <- as.data.frame(cbind(t(ccna_exp)))
+
+what
+
+ccna <- (t(df2))
+colnames(ccna) <- c("CCNA Expression Level")
+
+ccna <- cbind(ccna, disease$disease.state)
+
+ccna[,1]
+plot(ccna[,1])
+
+ccna <- as.data.frame(ccna)
+ccna
+
+library(ggplot2)
+#library(tidyverse)
+
+ggplot(ccna, aes(rownames(ccna),ccna$`CCNA Expression Level`, colour = disease$disease.state)) +
+  geom_point(xlab= "Samples", ylab="Expression Level") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6)) +
+  ggtitle("Expression level of ALDH1A1 amongst patients with/without leakumia")
+
+ccna
+
+head(ccna)
+
+#ident <- df[,2]
+id_ref <- df[,1]
+
+
+head(eset)
+countdata <- as.matrix(eset)
+
+head(countdata)
+
+
+# make a colour vector
+statusCol <- as.numeric(factor(disease$disease.state)) + 1
+# Check distributions of samples using boxplots
+boxplot(countdata, 
+        xlab="", 
+        ylab="Expression Value",
+        las=2,
+        col=statusCol,
+        main = "Distribution of expression level per sample")
+
+```
+
+```{r}
+library(ggfortify)
+#BiocManager::install("DESeq2")
+library(DESeq2)
+#countdata
+# run PCA
+pcDat <- prcomp(t(countdata))
+# plot PCA
+autoplot(pcDat)
+
+
+sort(pcDat$rotation[1:10,1])
+
+
+# setting shape to FALSE causes the plot to default to using the labels
+autoplot(pcDat,
+         data = disease, 
+         colour="disease.state", 
+         shape=FALSE,
+         label.size=2,
+         main = "Dimension Reduction: First two Principal components")
+
+# We estimate the variance for each row in the logcounts matrix
+countVar <- apply(countdata, 1, var)
+# Get the row numbers for the top 500 most variable genes
+highVar <- order(countVar, decreasing=TRUE)[1:1000]
+# Subset logcounts matrix
+hmDat <- countdata[highVar,]
+
+library(gplots)
+library(RColorBrewer)
+# Get some nicer colours
+mypalette <- brewer.pal(11, "RdYlBu")
+# http://colorbrewer2.org/#type=sequential&scheme=BuGn&n=3
+morecols <- colorRampPalette(mypalette)
+
+#levels(disease$disease.state)
+
+# Set up colour vector for celltype variable
+col.cell <- c("purple","orange")[disease$disease.state]
+# Plot the heatmap
+heatmap.2(hmDat, 
+          col=rev(morecols(50)),
+          trace="column", 
+          main="Top 1000 most variable genes across samples",
+          ColSideColors=col.cell,scale="row")
+
+```
+
+
+
+
+
+
+
+

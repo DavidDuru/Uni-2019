@@ -99,8 +99,6 @@ df7
 
 
 ```{r}
-#BiocManager::install("GEOquery")
-#biocLite("GEOquery")
 
 library(Biobase)
 library(GEOquery)
@@ -131,12 +129,42 @@ dim(df)
 
 head(df)
 
-table(duplicated(df$IDENTIFIER))
-table(duplicated(df$ID_REF))
+#table(duplicated(df$IDENTIFIER))
+#table(duplicated(df$ID_REF))
 
-df2 <- df[,3:66]
+df2 <- df %>% filter(IDENTIFIER == "CCNA1")
 
-df3 <- data.frame(t(df2))
+df2 <- df2[,3:66]
+ 
+df2
+ccna_exp <- df2[1,]
+ccna_exp
+
+what <- as.data.frame(cbind(t(ccna_exp)))
+
+what
+
+ccna <- (t(df2))
+colnames(ccna) <- c("CCNA Expression Level")
+
+ccna <- cbind(ccna, disease_state)
+
+ccna[,1]
+plot(ccna[,1])
+
+ccna <- as.data.frame(ccna)
+ccna
+
+library(ggplot2)
+
+ggplot(ccna, aes(rownames(ccna),ccna$`CCNA Expression Level`, colour = disease_state)) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6)) +
+  ggtitle("Expression level of CNNA amongst patients with/without leakumia")
+
+ccna
+
+head(ccna)
 
 #ident <- df[,2]
 id_ref <- df[,1]
@@ -145,7 +173,86 @@ colnames(df3) <- id_ref
 
 head(df3)
 
+
+head(eset)
+countdata <- as.matrix(eset)
+
+head(countdata)
+
+# Get log2 counts per million
+logcounts <- log2(countdata + 1)
+
+# make a colour vector
+statusCol <- as.numeric(factor(disease_state)) + 1
+# Check distributions of samples using boxplots
+b <- boxplot(logcounts, 
+        xlab="", 
+        ylab="Log2(Counts)",
+        las=2,
+        col=statusCol)
+
+
+library(ggfortify)
+#BiocManager::install("DESeq2")
+library(DESeq2)
+rlogcounts <- rlog(countdata)
+# run PCA
+pcDat <- prcomp(t(countdata))
+# plot PCA
+autoplot(pcDat)
+
+
+sort(pcDat$rotation[1:10,1])
+
+
+# setting shape to FALSE causes the plot to default to using the labels
+autoplot(pcDat,
+         data = disease, 
+         colour="disease.state", 
+         shape=FALSE,
+         label.size=2)
+
+
+# We estimate the variance for each row in the logcounts matrix
+countVar <- apply(rlogcounts, 1, var)
+# Get the row numbers for the top 500 most variable genes
+highVar <- order(countVar, decreasing=TRUE)[1:500]
+# Subset logcounts matrix
+hmDat <- rlogcounts[highVar,]
+
+
 ```
+
+```{r}
+# We estimate the variance for each row in the logcounts matrix
+countVar <- apply(countdata, 1, var)
+# Get the row numbers for the top 500 most variable genes
+highVar <- order(countVar, decreasing=TRUE)[1:1000]
+# Subset logcounts matrix
+hmDat <- countdata[highVar,]
+
+library(gplots)
+library(RColorBrewer)
+# Get some nicer colours
+mypalette <- brewer.pal(11, "RdYlBu")
+# http://colorbrewer2.org/#type=sequential&scheme=BuGn&n=3
+morecols <- colorRampPalette(mypalette)
+
+
+levels(disease$disease.state)
+
+
+# Set up colour vector for celltype variable
+col.cell <- c("purple","orange")[disease$disease.state]
+# Plot the heatmap
+heatmap.2(hmDat, 
+          col=rev(morecols(50)),
+          trace="column", 
+          main="Top 500 most variable genes across samples",
+          ColSideColors=col.cell,scale="row")
+
+```
+
 
 ```{r}
 library(ggplot2)

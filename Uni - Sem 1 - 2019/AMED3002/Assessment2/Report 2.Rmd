@@ -1,0 +1,379 @@
+---
+title: "Identification of genes with abnormal expression changes in acute myeloid leukemia"
+author: "Aidan Peruch, David Duruchukwu, Eric Hsiung"
+date: "date here"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+    theme: "yeti"
+---
+
+```{r setup, include=FALSE}
+
+```
+
+```{r load_libraries,results="hide",message=FALSE, warning=FALSE}
+#BiocManager::install("GEOquery")
+library(tibble)
+library(tidyverse)
+#source("https://bioconductor.org/biocLite.R")
+#biocLite("GEOquery")
+library(Biobase)
+library(GEOquery)
+library(dplyr)
+library(edgeR)
+library(limma)
+library(ggfortify)
+#BiocManager::install("DESeq2")
+library(DESeq2)
+library(gplots)
+library(RColorBrewer)
+
+```
+#Manuscript
+**I've copied this stuff from the slides, Chosen Study:**
+*Identification of genes with abnormal expression changes in acute myeloid leukemia*
+
+*Derek L. Stirewalt Soheil Meshinchi Kenneth J. Kopecky Wenhong Fan Era L. Pogosova-Agadjanyan Julia H. Engel Michelle R. Cronk Kathleen Shannon Dorcy Amy R. McQuary David Hockenbery Brent Wood Shelly Heimfeld Jerald P. Radich*
+
+
+**I've copied this stuff from the slides, Experimental Design:**
+
+*Methods:*
+
+*CD34+ Bone Marrow, CD3+ peripheral blood stem cells, and unselected peripheral blood samples were extracted from both Normal and AML patients and put through RNA extraction processes and then microarray analysis to determine RNA expression levels. They also used microarray data from an additional 285 AML patients to validate their results.*
+
+*Results*
+
+*They found that there were 7 possible oncogenes - BIK, CCNA1, FUT4, IL3RA, HOMER3, JAG1, WT1, and 6 possible tumour supressor genes -  ALDHA1A, PELO, PLXNC1, PRUNE, SERPINB9, TRIB2*
+
+**Validity of this study - Do the results hold weight?, Experimental Design:**
+
+*There is high validity to this study as the have not only included data from their own patient samples, but they have included data from outside sources with the same disease and used that to do their analysis meaning that their data isn't skewed by their patient "batch".*
+
+####Abstract
+Twenty genes displayed AML-specific expression changes that were not found in the normal hematopoietic cells. Subsequent analyses using microarray data from 285 additional AML patients confirmed expression changes for 13 of the 20 genes. Seven genes (BIK, CCNA1, FUT4, IL3RA, HOMER3, JAG1, WT1) displayed increased expression in AML, while 6 genes (ALDHA1A, PELO, PLXNC1, PRUNE, SERPINB9, TRIB2) displayed decreased expression. 
+
+Quantitative RT/PCR studies for the 7 over-expressed genes were performed in an independent set of 9 normal and 21 pediatric AML samples. All 7 over-expressed genes displayed an increased expression in the AML samples compared to normals. Three of the 7 over-expressed genes (WT1, CCNA1, and IL3RA) have already been linked to leukemogenesis and/or AML prognosis, while little is known about the role of the other 4 over-expressed genes in AML.
+
+###Loading Data
+
+```{r load_data,results="hide",message=FALSE,warning=FALSE}
+gds3057 <- getGEO(filename='GDS3057_full.soft.gz')
+```
+
+###Wrangling Data
+
+```{r clean_data,results="hide",message=FALSE,warning=FALSE}
+#these are some genes that were particularly highly expressed
+#we'll try to find them using DEA
+#up_regulated <- c("BIK", "CCNA1", "FUT4", "IL3RA", "HOMER3", "JAG1", "WT1")
+#low expressed results from study
+#down_regulated <- c("ALDHA1A", "PELO", "PLXNC1", "PRUNE", "SERPINB9", "TRIB2")
+#Load in the soft file
+
+#naming some stuff to use later
+disease <- gds3057@dataTable@columns
+
+#head(disease)
+
+df <- gds3057@dataTable@table
+eset <- df
+
+#Subsetting just the important expression data
+eset <- eset[,3:66]
+
+#There is a key/value relationship between the genes
+#Donm't know why, it results it duplicate genes being recorded
+rname <- df$ID_REF
+
+#renamingrows of expression set
+rownames(eset) <- rname
+
+#dropping unncessary info
+#renaming rows of disease state
+dRowNames <- disease$sample
+disease <- disease %>% select(-sample)
+disease <- disease %>% select(-cell.type,-description)
+rownames(disease) <- dRowNames
+
+#disease looks like this now
+#head(disease)
+
+#construct design matrix
+#One hot encoding
+design <- model.matrix(~disease.state, disease)
+
+#looks like this
+#head(design)
+#head(eset)
+
+```
+
+```{r,results="hide",message=FALSE}
+```
+
+##Tab Heading {.tabset .tabset-fade .tabset-pills}
+
+Plots
+
+###Tab1
+
+```{r exploration_plotting}
+countdata <- as.matrix(eset)
+
+statusCol <- as.numeric(factor(disease$disease.state)) + 1
+# Check distributions of samples using boxplots
+boxplot(countdata, 
+        xlab="", 
+        ylab="Expression Value",
+        las=2,
+        col=statusCol,
+        main = "Distribution of expression level per sample")
+```
+
+###Tab 2
+
+```{r}
+pcDat <- prcomp(t(countdata))
+
+sort(pcDat$rotation[1:10,1])
+
+# setting shape to FALSE causes the plot to default to using the labels
+autoplot(pcDat,
+         data = disease, 
+         colour="disease.state", 
+         shape=FALSE,
+         label.size=2,
+         main = "Dimension Reduction: First two Principal components")
+
+```
+
+###Tab 3
+
+
+```{r}
+
+# We estimate the variance for each row in the logcounts matrix
+countVar <- apply(countdata, 1, var)
+# Get the row numbers for the top 500 most variable genes
+highVar <- order(countVar, decreasing=TRUE)[1:1000]
+# Subset logcounts matrix
+hmDat <- countdata[highVar,]
+
+mypalette <- brewer.pal(11, "RdYlBu")
+# http://colorbrewer2.org/#type=sequential&scheme=BuGn&n=3
+morecols <- colorRampPalette(mypalette)
+
+#levels(disease$disease.state)
+
+# Set up colour vector for celltype variable
+col.cell <- c("purple","orange")[disease$disease.state]
+# Plot the heatmap
+heatmap.2(hmDat, 
+          col=rev(morecols(50)),
+          trace="column", 
+          main="Top 1000 most variable genes across samples",
+          ColSideColors=col.cell,scale="row")
+```
+
+##Tab Section 2{.tabset .tabset-fade .tabset-pills}
+
+###Tab 2.1
+
+```{r}
+#We can fit a linear model
+fit <- lmFit(eset, design)
+#Do heaps of T-tests
+fit <- eBayes(fit, robust = TRUE)
+
+#summary(fit)
+
+#we can see which genes were high and lowly expressed by this model
+results <- decideTests(fit[, "disease.statenormal"])
+summary(results)
+
+
+
+```
+
+###Tab 2.2
+
+```{r}
+#Now we can do the same thing with DGE, see if we get better results
+dge <- DGEList(counts = eset[, rownames(design)])
+dge <- calcNormFactors(dge)
+
+#Some form of variance stabilisation
+v <- voom(dge, design, plot = TRUE)
+
+#Fitting the linear model with the voom data
+fit <- lmFit(v, design)
+fit <- eBayes(fit, robust = TRUE)
+
+#See how results differ from previous testing method
+results <- decideTests(fit[, "disease.statenormal"])
+#summary(results)
+
+#I'm a bit worried about this histogram
+#I think it should be uniform, but there's loads of 0's
+hist(fit$p.value[, 2])
+
+#where our p values sit around 0
+volcanoplot(fit, coef = "disease.statenormal", highlight = 12, names = df$IDENTIFIER)
+
+#A list of the top genes
+topGenes = topTable(fit, coef = "disease.statenormal", n = 1e+06, p.value = 0.05)
+
+########
+#PROPER RESULTS HERE
+
+#here are the pvalues
+#topGenes
+check_final <- rownames(topGenes)
+
+#These are the features with the lowest p values
+top_10_lowest_pvalues_ids <- check_final[1:10]
+
+top_10_lowest_pvalues_ids
+
+pvals <- topGenes$P.Value
+
+#we have to look up which features correspond to which specific genes
+Id_to_gene <- df %>% filter(df$ID_REF %in% top_10_lowest_pvalues_ids)
+
+#you can see which id corresponds to which gene here
+#Id_to_gene
+
+#up_regulated
+
+#down_regulated
+```
+
+
+###Tab 2.3
+
+```{r include=FALSE}
+pval = fit$p.value[,2]
+pval = as.data.frame(pval)
+
+pval2 <- cbind(rownames(pval), pval)
+rownames(pval2) = NULL
+pval2
+
+pval3 <- pval2 %>% filter(pval2$pval < 0.05)
+pval3
+
+relevantGenes <- pval3$`rownames(pval)`
+
+#relevantGenes
+
+eset2 <- eset
+
+df2 <- as.data.frame(df)
+
+df2$ID_REF = as.factor(df2$ID_REF)
+
+df3 <- subset(df2, (ID_REF %in% relevantGenes))
+
+df3
+
+eset2 <- df3
+
+disease <- gds3057@dataTable@columns
+
+#There is a key/value relationship between the genes
+#Donm't know why, it results it duplicate genes being recorded
+rname <- eset2$ID_REF
+rname
+
+#Subsetting just the important expression data
+eset2 <- eset2[,3:66]
+
+#renamingrows of expression set
+rownames(eset2) <- rname
+rname
+
+eset2
+
+#dropping unncessary info
+#renaming rows of disease state
+dRowNames <- disease$sample
+dRowNames
+disease <- disease %>% select(-sample)
+disease <- disease %>% select(-cell.type,-description)
+rownames(disease) <- dRowNames
+
+#disease looks like this now
+#head(disease)
+
+#construct design matrix
+#One hot encoding
+design <- model.matrix(~disease.state, disease)
+
+#looks like this
+#head(design)
+#head(eset)
+
+#Now we can do the same thing with DGE, see if we get better results
+dge <- DGEList(counts = eset2[, rownames(design)])
+dge <- calcNormFactors(dge)
+
+#Some form of variance stabilisation
+v <- voom(dge, design, plot = TRUE)
+
+#Fitting the linear model with the voom data
+fit <- lmFit(v, design)
+fit <- eBayes(fit, robust = TRUE)
+
+#See how results differ from previous testing method
+results <- decideTests(fit[, "disease.statenormal"])
+#summary(results)
+
+#I'm a bit worried about this histogram
+#I think it should be uniform, but there's loads of 0's
+hist(fit$p.value[, 2])
+
+#where our p values sit around 0
+volcanoplot(fit, coef = "disease.statenormal", highlight = 12, names = df$IDENTIFIER)
+
+#A list of the top genes
+topGenes = topTable(fit, coef = "disease.statenormal", n = 1e+06, p.value = 0.05)
+
+########
+#PROPER RESULTS HERE
+
+#here are the pvalues
+topGenes
+check_final <- rownames(topGenes)
+
+#These are the features with the lowest p values
+top_10_lowest_pvalues_ids <- check_final[1:10]
+
+top_10_lowest_pvalues_ids
+
+pvals <- topGenes$P.Value
+
+#we have to look up which features correspond to which specific genes
+Id_to_gene <- df %>% filter(df$ID_REF %in% top_10_lowest_pvalues_ids)
+
+```
+
+##Analysis
+
+```{r analysis}
+
+```
+
+```{r}
+```
+
+```{r}
+
+```
+
+
+
+
